@@ -2,20 +2,17 @@
 
 from __future__ import annotations
 
-import shutil
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 
 from macroa.tools.installer import (
     InstallError,
+    _read_manifest_description,
     install,
     list_installed,
     uninstall,
-    _read_manifest_description,
 )
-
 
 # ------------------------------------------------------------------ helpers
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from collections import deque
 
-from macroa.stdlib.schema import Context, ContextEntry, ModelTier, SkillResult
+from macroa.stdlib.schema import Context, ContextEntry, SkillResult
 
 
 class ContextManager:

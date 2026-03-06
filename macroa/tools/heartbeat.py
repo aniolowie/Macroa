@@ -27,7 +27,7 @@ import threading
 import time
 
 from macroa.stdlib.schema import DriverBundle
-from macroa.tools.registry import ToolEntry, ToolRegistry
+from macroa.tools.registry import ToolRegistry
 
 logger = logging.getLogger(__name__)
 

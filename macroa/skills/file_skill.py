@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from macroa.drivers.fs_driver import FSDriverError
 from macroa.stdlib.schema import (
-    Context, DriverBundle, Intent, SkillManifest, SkillResult,
+    Context,
+    DriverBundle,
+    Intent,
+    SkillManifest,
+    SkillResult,
 )
 
 MANIFEST = SkillManifest(

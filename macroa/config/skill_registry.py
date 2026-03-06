@@ -6,10 +6,10 @@ import importlib
 import importlib.util
 import logging
 import sys
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
-from macroa.stdlib.schema import SkillManifest, Intent, Context, SkillResult, DriverBundle
+from macroa.stdlib.schema import Context, DriverBundle, Intent, SkillManifest, SkillResult
 
 logger = logging.getLogger(__name__)
 

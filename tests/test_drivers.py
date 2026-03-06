@@ -1,14 +1,11 @@
 """Tests for deterministic drivers (no LLM calls)."""
 
-import tempfile
-from pathlib import Path
 
 import pytest
 
 from macroa.drivers.fs_driver import FSDriver, FSDriverError
 from macroa.drivers.memory_driver import MemoryDriver
 from macroa.drivers.shell_driver import ShellDriver
-
 
 # ------------------------------------------------------------------ ShellDriver
 

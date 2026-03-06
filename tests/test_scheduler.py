@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-import time
 import threading
+import time
 from pathlib import Path
 
 import pytest
 
-from macroa.kernel.scheduler import Scheduler, _parse_next_run, _next_cron
-
+from macroa.kernel.scheduler import Scheduler, _next_cron, _parse_next_run
 
 # ------------------------------------------------------------------ parse helpers
 
@@ -107,7 +106,7 @@ def test_once_task_removed_after_fire(tmp_path):
     s = Scheduler(db_path=tmp_path / "s.db", run_fn=run_fn, poll_interval=60)
     # Schedule in the past so it fires immediately
     past = time.time() - 1
-    task = s.add("once-task", "!echo once", f"once:{past}", session_id="s")
+    s.add("once-task", "!echo once", f"once:{past}", session_id="s")
     s._tick()
     assert fired == ["!echo once"]
     assert s.list_tasks() == []  # removed after one-shot

@@ -5,7 +5,6 @@ from __future__ import annotations
 from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
-from rich.text import Text
 from rich.theme import Theme
 
 from macroa.stdlib.schema import ModelTier, SkillResult

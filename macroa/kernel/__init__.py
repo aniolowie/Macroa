@@ -17,12 +17,12 @@ from macroa.drivers.shell_driver import ShellDriver
 from macroa.kernel.audit import AuditEntry, AuditLog
 from macroa.kernel.context import ContextManager
 from macroa.kernel.dispatcher import Dispatcher
-from macroa.kernel.events import Event, EventBus, Events, bus
+from macroa.kernel.events import Event, Events, bus
 from macroa.kernel.planner import Planner
 from macroa.kernel.router import Router
 from macroa.kernel.scheduler import Scheduler
 from macroa.kernel.sessions import SessionStore
-from macroa.stdlib.schema import DriverBundle, Intent, ModelTier, SkillResult
+from macroa.stdlib.schema import DriverBundle, Intent, SkillResult
 from macroa.tools.heartbeat import HeartbeatManager
 from macroa.tools.registry import ToolRegistry
 

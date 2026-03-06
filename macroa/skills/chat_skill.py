@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from macroa.drivers.llm_driver import LLMDriverError
 from macroa.stdlib.schema import (
-    Context, ContextEntry, DriverBundle, Intent, ModelTier, SkillManifest, SkillResult,
+    Context,
+    DriverBundle,
+    Intent,
+    SkillManifest,
+    SkillResult,
 )
 
 MANIFEST = SkillManifest(

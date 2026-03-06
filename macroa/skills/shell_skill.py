@@ -3,7 +3,11 @@
 from __future__ import annotations
 
 from macroa.stdlib.schema import (
-    Context, DriverBundle, Intent, ModelTier, SkillManifest, SkillResult,
+    Context,
+    DriverBundle,
+    Intent,
+    SkillManifest,
+    SkillResult,
 )
 
 MANIFEST = SkillManifest(

@@ -124,7 +124,6 @@ class MemoryDriver:
 
                 # Migrate v1 data if the old table had rows
                 if version >= 1:
-                    now = time.time()
                     conn.execute("""
                         INSERT OR IGNORE INTO facts
                             (namespace, key, value, confidence, source, created_at, updated_at)

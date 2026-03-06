@@ -2,22 +2,17 @@
 
 from __future__ import annotations
 
-import tempfile
-import threading
 import time
 import uuid
 from pathlib import Path
 from unittest.mock import MagicMock
 
-import pytest
-
-from macroa.config.skill_registry import SkillEntry, SkillRegistry
+from macroa.config.skill_registry import SkillRegistry
 from macroa.stdlib.schema import Context, DriverBundle, Intent, ModelTier, SkillResult
 from macroa.tools.base import BaseTool, ToolManifest
 from macroa.tools.heartbeat import HeartbeatManager
 from macroa.tools.registry import ToolEntry, ToolRegistry
 from macroa.tools.runner import ToolRunner
-
 
 # ------------------------------------------------------------------ fixtures
 

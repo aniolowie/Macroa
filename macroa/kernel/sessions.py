@@ -8,7 +8,6 @@ import time
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
 
 from macroa.stdlib.schema import ContextEntry
 
@@ -92,7 +91,7 @@ class SessionStore:
             self._conn.commit()
             return SessionMeta(session_id=session_id, name=name, created_at=now, updated_at=now)
 
-    def get_by_id(self, session_id: str) -> Optional[SessionMeta]:
+    def get_by_id(self, session_id: str) -> SessionMeta | None:
         with self._lock:
             row = self._conn.execute(
                 "SELECT * FROM sessions WHERE session_id = ?", (session_id,)

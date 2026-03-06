@@ -7,7 +7,7 @@ import logging
 
 from macroa.config.skill_registry import SkillRegistry
 from macroa.kernel.escalation import next_tier
-from macroa.stdlib.schema import Context, DriverBundle, Intent, ModelTier, SkillResult
+from macroa.stdlib.schema import Context, DriverBundle, Intent, SkillResult
 
 logger = logging.getLogger(__name__)
 

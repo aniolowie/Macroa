@@ -1,8 +1,8 @@
 """Tests for memory driver v2 — semantic facts + episodic memory."""
 
 import time
-import pytest
-from macroa.drivers.memory_driver import MemoryDriver, Fact, Episode
+
+from macroa.drivers.memory_driver import Episode, Fact, MemoryDriver
 
 
 def _mem(tmp_path) -> MemoryDriver:
