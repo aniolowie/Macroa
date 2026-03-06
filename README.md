@@ -1,27 +1,53 @@
 <div align="center">
 
-# Macroa
+```
+╔══════════════════════════════════════════════╗
+║                                              ║
+║   ███╗   ███╗ █████╗  ██████╗██████╗  ██████╗  █████╗  ║
+║   ████╗ ████║██╔══██╗██╔════╝██╔══██╗██╔═══██╗██╔══██╗ ║
+║   ██╔████╔██║███████║██║     ██████╔╝██║   ██║███████║ ║
+║   ██║╚██╔╝██║██╔══██║██║     ██╔══██╗██║   ██║██╔══██║ ║
+║   ██║ ╚═╝ ██║██║  ██║╚██████╗██║  ██║╚██████╔╝██║  ██║ ║
+║   ╚═╝     ╚═╝╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═╝ ║
+║                                              ║
+╚══════════════════════════════════════════════╝
+```
 
-**Your personal AI OS — running on your machine, answering to you.**
+### 🤖 Your personal AI OS — running on your machine, answering to you.
+
+> *Routes every request to the right model tier automatically. Remembers everything you tell it.*
+> *Runs shell commands, manages files, and schedules tasks — no AI overhead when you don't need it.*
+
+<br>
 
 [![CI](https://github.com/aniolowie/Macroa/actions/workflows/ci.yml/badge.svg)](https://github.com/aniolowie/Macroa/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/aniolowie/Macroa/graph/badge.svg)](https://codecov.io/gh/aniolowie/Macroa)
-[![PyPI](https://img.shields.io/pypi/v/macroa)](https://pypi.org/project/macroa/)
-[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/)
-[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![Downloads](https://img.shields.io/pypi/dm/macroa)](https://pypi.org/project/macroa/)
+[![PyPI](https://img.shields.io/pypi/v/macroa?color=blue&logo=pypi&logoColor=white)](https://pypi.org/project/macroa/)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-22c55e?logo=opensourceinitiative&logoColor=white)](LICENSE)
+[![Downloads](https://img.shields.io/pypi/dm/macroa?color=orange&logo=pypi&logoColor=white)](https://pypi.org/project/macroa/)
+[![Stars](https://img.shields.io/github/stars/aniolowie/Macroa?style=flat&logo=github&color=yellow)](https://github.com/aniolowie/Macroa/stargazers)
+[![Issues](https://img.shields.io/github/issues/aniolowie/Macroa?logo=github)](https://github.com/aniolowie/Macroa/issues)
 
-Routes every request to the right model tier automatically. Remembers everything you tell it. Runs shell commands, manages files, and schedules tasks — no AI overhead for operations that don't need it. Exposes a full HTTP API and web dashboard. Installs in under a minute.
+<br>
+
+| 🧠 Smart routing | 💾 Persistent memory | ⚡ Zero-cost ops | 🌐 HTTP API |
+|:---:|:---:|:---:|:---:|
+| Right model for every task | Facts, episodes & sessions | Shell & memory skip the LLM | REST + SSE + dashboard |
 
 </div>
 
 ---
 
+<div align="center">
+
 [![Star History Chart](https://api.star-history.com/image?repos=aniolowie/Macroa&type=date&legend=top-left)](https://www.star-history.com/?repos=aniolowie%2FMacroa&type=date&legend=top-left)
+
+</div>
 
 ---
 
-## What makes it different
+## ✨ What makes it different
 
 Most AI assistants either call an expensive model for everything, or leave you to manage prompts and routing yourself. Macroa treats AI like a CPU: cheap cores handle simple work, powerful cores handle complex work, and purely deterministic operations never touch a model at all.
 
@@ -39,29 +65,44 @@ The result: routing and memory — the majority of calls in normal use — cost 
 
 ---
 
-## Table of contents
+## 📋 Table of contents
 
-- [Installation](#installation)
-- [Setup](#setup)
-- [Quick start](#quick-start)
-- [REPL](#repl)
-- [Single-shot mode](#single-shot-mode)
-- [Sessions](#sessions)
-- [Scheduler](#scheduler)
-- [Tools](#tools)
-- [HTTP API & dashboard](#http-api--dashboard)
-- [Architecture](#architecture)
-- [Model tiers](#model-tiers)
-- [Memory layers](#memory-layers)
-- [Writing a tool](#writing-a-tool)
-- [Configuration reference](#configuration-reference)
-- [Tests](#tests)
+- [🔧 Installation](#installation)
+- [⚙️ Setup](#setup)
+- [🚀 Quick start](#quick-start)
+- [💬 REPL](#repl)
+- [⚡ Single-shot mode](#single-shot-mode)
+- [💾 Sessions](#sessions)
+- [🗓️ Scheduler](#scheduler)
+- [🔌 Tools](#tools)
+- [🌐 HTTP API & dashboard](#http-api--dashboard)
+- [🏗️ Architecture](#architecture)
+- [🧠 Model tiers](#model-tiers)
+- [🗃️ Memory layers](#memory-layers)
+- [✏️ Writing a tool](#writing-a-tool)
+- [🗂️ Project layout](#project-layout)
+- [🔑 Configuration reference](#configuration-reference)
+- [🧪 Tests](#tests)
 
 ---
 
-## Installation
+## 🔧 Installation
 
 **Requirements:** Python 3.11+, an [OpenRouter](https://openrouter.ai) API key.
+
+### ⚡ Quick install via pip *(recommended)*
+
+```bash
+pip install macroa
+```
+
+With the optional web API and dashboard:
+
+```bash
+pip install "macroa[web]"
+```
+
+### 🛠️ Install from source *(for development)*
 
 ```bash
 git clone https://github.com/aniolowie/Macroa.git
@@ -79,7 +120,7 @@ pip install -e ".[web]"
 
 ---
 
-## Setup
+## ⚙️ Setup
 
 Run the interactive wizard — it only fires once, or whenever you call it explicitly:
 
@@ -100,7 +141,7 @@ That's it. Run `macroa` to start.
 
 ---
 
-## Quick start
+## 🚀 Quick start
 
 ```
 macroa> what is the capital of France
@@ -124,7 +165,7 @@ macroa> write a full guide on home lab security, networking, and monitoring
 
 ---
 
-## REPL
+## 💬 REPL
 
 ```bash
 macroa                    # ephemeral session
@@ -144,7 +185,7 @@ Built-in REPL commands:
 
 ---
 
-## Single-shot mode
+## ⚡ Single-shot mode
 
 Run one command and exit — useful for scripts and pipelines:
 
@@ -160,7 +201,7 @@ Exit code is `0` on success, `1` on failure — pipeable.
 
 ---
 
-## Sessions
+## 💾 Sessions
 
 Named sessions persist to disk and survive process restarts. Context is serialised after every turn and restored on resume.
 
@@ -176,7 +217,7 @@ Without `--session`, the session is ephemeral and discarded on exit.
 
 ---
 
-## Scheduler
+## 🗓️ Scheduler
 
 Commands run automatically in the background. The scheduler survives restarts and supports four recurrence formats.
 
@@ -204,7 +245,7 @@ macroa schedule delete <id-prefix>
 
 ---
 
-## Tools
+## 🔌 Tools
 
 Tools are Python packages that extend Macroa with any capability — API integrations, services, automation. Install from a local directory or a git URL:
 
@@ -221,7 +262,7 @@ Once installed, just describe what you want — the kernel routes to the right t
 
 ---
 
-## HTTP API & dashboard
+## 🌐 HTTP API & dashboard
 
 ```bash
 macroa serve                              # starts at http://localhost:8000
@@ -265,7 +306,7 @@ Open `http://localhost:8000/dashboard` after starting the server:
 
 ---
 
-## Architecture
+## 🏗️ Architecture
 
 ```
 User input
@@ -323,7 +364,7 @@ User input
 
 ---
 
-## Model tiers
+## 🧠 Model tiers
 
 Macroa uses a hardware analogy to describe its model stack. Each tier maps to a class of work:
 
@@ -348,7 +389,7 @@ Tier keywords are detected before routing — if present, they override everythi
 
 ---
 
-## Memory layers
+## 🗃️ Memory layers
 
 Macroa stores memory at three levels. Each layer has a different scope, lifetime, and retrieval method.
 
@@ -369,7 +410,7 @@ Exact-key memory reads never touch the LLM. `what is my server IP?` → SQL look
 
 ---
 
-## Writing a tool
+## ✏️ Writing a tool
 
 Drop a directory into `~/.macroa/tools/` — or use `macroa install` — and it's picked up automatically on the next run:
 
@@ -427,7 +468,7 @@ See `macroa/tools/examples/call_me/` for a complete reference implementation (Tw
 
 ---
 
-## Project layout
+## 🗂️ Project layout
 
 ```
 macroa/
@@ -479,7 +520,7 @@ macroa/
 
 ---
 
-## Configuration reference
+## 🔑 Configuration reference
 
 All settings are environment variables. The wizard writes them to `~/.macroa/.env`. You can also set them in a project-level `.env` file — project settings take priority over wizard defaults, which take priority over built-in defaults.
 
@@ -504,7 +545,7 @@ All settings are environment variables. The wizard writes them to `~/.macroa/.en
 
 ---
 
-## Tests
+## 🧪 Tests
 
 ```bash
 pytest tests/ -v
@@ -515,7 +556,7 @@ pytest tests/ --cov=macroa --cov-report=term-missing
 
 ---
 
-## Roadmap
+## 🗺️ Roadmap
 
 Phase 3 (planned):
 
@@ -531,7 +572,7 @@ Phase 3 (planned):
 
 ---
 
-## Contributing
+## 🤝 Contributing
 
 Issues and PRs are welcome. See [CONTRIBUTING.md](.github/CONTRIBUTING.md) for guidelines and [SECURITY.md](.github/SECURITY.md) for the responsible disclosure policy.
 
