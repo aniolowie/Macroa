@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterator
 from typing import Any
 
-from openai import OpenAI, APIError
+from openai import APIError, OpenAI
 
 from macroa.stdlib.schema import ModelTier
 

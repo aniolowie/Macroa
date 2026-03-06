@@ -9,7 +9,7 @@ import uuid
 from macroa.config.skill_registry import SkillRegistry
 from macroa.drivers.llm_driver import LLMDriver, LLMDriverError
 from macroa.kernel.escalation import resolve_tier
-from macroa.stdlib.schema import Context, Intent, ModelTier, SkillManifest
+from macroa.stdlib.schema import Context, Intent, ModelTier
 from macroa.stdlib.text import is_shell_prefix, strip_shell_prefix
 
 logger = logging.getLogger(__name__)

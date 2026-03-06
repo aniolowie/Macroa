@@ -1,6 +1,6 @@
 """Tests for deterministic stdlib utilities."""
 
-import pytest
+from macroa.stdlib.schema import ModelTier, SkillResult
 from macroa.stdlib.text import (
     detect_escalation_tier,
     is_shell_prefix,
@@ -9,7 +9,6 @@ from macroa.stdlib.text import (
     strip_shell_prefix,
     truncate,
 )
-from macroa.stdlib.schema import ModelTier, Intent, SkillResult
 
 
 def test_strip_ansi():

@@ -12,7 +12,8 @@ so it drops into SkillEntry without any dispatcher changes.
 from __future__ import annotations
 
 import logging
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FuturesTimeout
 from typing import TYPE_CHECKING
 
 from macroa.stdlib.schema import Context, DriverBundle, Intent, SkillResult
@@ -27,7 +28,7 @@ class ToolRunner:
     def __init__(self, timeout: int) -> None:
         self._timeout = timeout
 
-    def wrap(self, tool: "BaseTool", manifest: "ToolManifest"):
+    def wrap(self, tool: BaseTool, manifest: ToolManifest):
         """Return a SkillRunFn that runs tool.execute() with timeout + error isolation."""
 
         def run_fn(intent: Intent, context: Context, drivers: DriverBundle) -> SkillResult:

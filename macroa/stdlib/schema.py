@@ -5,18 +5,18 @@ from __future__ import annotations
 import time
 import uuid
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
-    from macroa.drivers.llm_driver import LLMDriver
-    from macroa.drivers.shell_driver import ShellDriver
     from macroa.drivers.fs_driver import FSDriver
+    from macroa.drivers.llm_driver import LLMDriver
     from macroa.drivers.memory_driver import MemoryDriver
     from macroa.drivers.network_driver import NetworkDriver
+    from macroa.drivers.shell_driver import ShellDriver
 
 
-class ModelTier(str, Enum):
+class ModelTier(StrEnum):
     # Hardware analogy:
     # NANO   — microcontroller/background thread (routing, trivial ops)
     # HAIKU  — efficiency cores / E-cores       (lightweight tasks)
@@ -77,8 +77,8 @@ class SkillManifest:
 
 @dataclass
 class DriverBundle:
-    llm: "LLMDriver"
-    shell: "ShellDriver"
-    fs: "FSDriver"
-    memory: "MemoryDriver"
-    network: "NetworkDriver"
+    llm: LLMDriver
+    shell: ShellDriver
+    fs: FSDriver
+    memory: MemoryDriver
+    network: NetworkDriver

@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import json
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from macroa.config.skill_registry import SkillRegistry
 from macroa.drivers.llm_driver import LLMDriver, LLMDriverError

@@ -4,16 +4,17 @@ from __future__ import annotations
 
 import uuid
 from pathlib import Path
-from unittest.mock import MagicMock, patch
-
-import pytest
+from unittest.mock import MagicMock
 
 from macroa.kernel.context import ContextManager
 from macroa.kernel.escalation import next_tier, resolve_tier
 from macroa.stdlib.schema import (
-    Context, DriverBundle, Intent, ModelTier, SkillManifest, SkillResult,
+    Context,
+    DriverBundle,
+    Intent,
+    ModelTier,
+    SkillResult,
 )
-
 
 # ------------------------------------------------------------------ Escalation
 
@@ -119,8 +120,8 @@ def test_context_manager_pinned_not_evicted():
 def _make_drivers(tmp_path: Path) -> DriverBundle:
     from macroa.drivers.fs_driver import FSDriver
     from macroa.drivers.memory_driver import MemoryDriver
-    from macroa.drivers.shell_driver import ShellDriver
     from macroa.drivers.network_driver import NetworkDriver
+    from macroa.drivers.shell_driver import ShellDriver
     return DriverBundle(
         llm=MagicMock(),
         shell=ShellDriver(),

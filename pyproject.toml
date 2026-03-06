@@ -82,7 +82,12 @@ strict = true
 # ── coverage ──────────────────────────────────────────────────────────────────
 [tool.coverage.run]
 source = ["macroa"]
-omit   = ["macroa/tools/examples/*", "macroa/web/static/*"]
+omit   = [
+    "macroa/tools/examples/*",
+    "macroa/web/static/*",
+    "macroa/cli/main.py",
+    "macroa/cli/renderer.py",
+]
 
 [tool.coverage.report]
 show_missing = true

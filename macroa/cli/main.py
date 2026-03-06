@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import sys
 import logging
+import sys
 import time
 
 import click
@@ -215,7 +215,7 @@ def _execute(raw: str, session_id: str, debug: bool) -> None:
         render_result(result, debug=debug)
         if not result.success:
             sys.exit(1)
-    except EnvironmentError as exc:
+    except OSError as exc:
         render_error(str(exc))
         sys.exit(1)
     except Exception as exc:
@@ -231,8 +231,9 @@ def _execute(raw: str, session_id: str, debug: bool) -> None:
 @click.option("--force", is_flag=True, default=False, help="Overwrite existing tool.")
 def install(source: str, force: bool) -> None:
     """Install a tool from a local path or git URL."""
-    from macroa.tools.installer import install as do_install, InstallError
     from macroa.config.settings import get_settings
+    from macroa.tools.installer import InstallError
+    from macroa.tools.installer import install as do_install
     try:
         dest = do_install(source, get_settings().tools_dir, force=force)
         render_info(f"Tool installed at [bold]{dest}[/bold]. Restart Macroa to load it.")
@@ -245,8 +246,8 @@ def install(source: str, force: bool) -> None:
 @click.argument("name")
 def uninstall(name: str) -> None:
     """Uninstall a tool by name."""
-    from macroa.tools.installer import uninstall as do_uninstall
     from macroa.config.settings import get_settings
+    from macroa.tools.installer import uninstall as do_uninstall
     if do_uninstall(name, get_settings().tools_dir):
         render_info(f"Tool '{name}' uninstalled.")
     else:
@@ -261,8 +262,8 @@ def tools() -> None:
 @tools.command("list")
 def tools_list() -> None:
     """List installed user tools."""
-    from macroa.tools.installer import list_installed
     from macroa.config.settings import get_settings
+    from macroa.tools.installer import list_installed
     installed = list_installed(get_settings().tools_dir)
     if not installed:
         render_info("No user tools installed. Use: macroa install <path|url>")

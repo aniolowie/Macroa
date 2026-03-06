@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import os
 
-from macroa.stdlib.schema import Context, DriverBundle, Intent, ModelTier, SkillResult
+from macroa.stdlib.schema import Context, DriverBundle, Intent, SkillResult
 from macroa.tools.base import BaseTool, ToolManifest
 
 MANIFEST = ToolManifest(

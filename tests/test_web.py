@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import time
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -14,7 +14,6 @@ pytest.importorskip("httpx")
 from fastapi.testclient import TestClient
 
 from macroa.stdlib.schema import ModelTier, SkillResult
-
 
 # ------------------------------------------------------------------ fixtures
 
@@ -168,8 +167,9 @@ def test_audit_stats(client):
 
 
 def test_audit_recent(client, monkeypatch, tmp_path):
-    from macroa.kernel.audit import AuditLog, AuditEntry
     import time
+
+    from macroa.kernel.audit import AuditEntry, AuditLog
     log = AuditLog(db_path=tmp_path / "a.db")
     log.record(AuditEntry(
         turn_id="t1", session_id="s1", raw_input="hello",

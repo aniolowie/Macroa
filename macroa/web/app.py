@@ -11,7 +11,7 @@ Run:     macroa serve  OR  uvicorn macroa.web.app:app
 from __future__ import annotations
 
 import time
-from typing import AsyncIterator, Optional
+from collections.abc import AsyncIterator
 
 try:
     from fastapi import FastAPI, HTTPException, Query
@@ -24,9 +24,10 @@ except ImportError as exc:  # pragma: no cover
     ) from exc
 
 from pathlib import Path as _Path
-_STATIC = _Path(__file__).parent / "static"
 
-import macroa.kernel as kernel
+import macroa.kernel as kernel  # noqa: E402 — must come after FastAPI guard above
+
+_STATIC = _Path(__file__).parent / "static"
 
 app = FastAPI(
     title="Macroa API",
@@ -46,18 +47,18 @@ app.add_middleware(
 
 class RunRequest(BaseModel):
     input: str
-    session: Optional[str] = None    # name or UUID; omit for ephemeral session
+    session: str | None = None    # name or UUID; omit for ephemeral session
     stream: bool = False
 
 
 class RunResponse(BaseModel):
     output: str
     success: bool
-    skill: Optional[str] = None
-    tier: Optional[str] = None
+    skill: str | None = None
+    tier: str | None = None
     session_id: str
     elapsed_ms: int
-    error: Optional[str] = None
+    error: str | None = None
 
 
 class SessionInfo(BaseModel):
@@ -71,7 +72,7 @@ class ScheduleAddRequest(BaseModel):
     label: str
     command: str
     schedule: str               # once:<ts> | every:<s> | daily:<HH:MM> | cron:...
-    session: Optional[str] = None
+    session: str | None = None
 
 
 class AuditEntryInfo(BaseModel):
@@ -83,7 +84,7 @@ class AuditEntryInfo(BaseModel):
     success: bool
     elapsed_ms: int
     plan_steps: int
-    error: Optional[str] = None
+    error: str | None = None
     created_at: float
 
 
@@ -95,7 +96,7 @@ class TaskInfo(BaseModel):
     next_run_at: float
     run_count: int
     enabled: bool
-    last_error: Optional[str] = None
+    last_error: str | None = None
 
 
 # ------------------------------------------------------------------ /run
@@ -129,7 +130,7 @@ def run_sync(req: RunRequest) -> RunResponse:
 @app.get("/run/stream")
 def run_stream(
     input: str = Query(..., description="The command to run"),
-    session: Optional[str] = Query(None, description="Session name or ID"),
+    session: str | None = Query(None, description="Session name or ID"),
 ) -> StreamingResponse:
     """
     Execute a command and stream the response as Server-Sent Events.
@@ -216,8 +217,8 @@ def audit_stats() -> dict:
 @app.get("/audit/recent", response_model=list[AuditEntryInfo])
 def audit_recent(n: int = Query(50, ge=1, le=500)) -> list[AuditEntryInfo]:
     """Return the N most recent audit log entries."""
-    from macroa.kernel.audit import AuditLog
     from macroa.config.settings import get_settings
+    from macroa.kernel.audit import AuditLog
     log = AuditLog(db_path=get_settings().audit_db_path)
     return [
         AuditEntryInfo(

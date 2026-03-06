@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 
@@ -49,7 +49,7 @@ class Settings:
 def get_settings() -> Settings:
     api_key = os.environ.get("OPENROUTER_API_KEY", "")
     if not api_key:
-        raise EnvironmentError(
+        raise OSError(
             "OPENROUTER_API_KEY is not set. "
             "Copy .env.example to .env and add your key."
         )

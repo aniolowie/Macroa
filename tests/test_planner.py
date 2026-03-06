@@ -3,12 +3,9 @@
 from __future__ import annotations
 
 import json
-import uuid
 from unittest.mock import MagicMock
 
-import pytest
-
-from macroa.kernel.planner import Plan, PlanStep, Planner, _is_trivially_atomic
+from macroa.kernel.planner import Plan, Planner, _is_trivially_atomic
 from macroa.stdlib.schema import Context, ModelTier
 
 

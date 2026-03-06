@@ -2,20 +2,15 @@
 
 from __future__ import annotations
 
-import time
-import uuid
-from pathlib import Path
-from unittest.mock import MagicMock, patch
-from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading
-import json
+import uuid
+from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import pytest
 
 from macroa.drivers.network_driver import NetworkDriver, NetworkResponse
-from macroa.kernel.events import Event, EventBus, Events
 from macroa.kernel.audit import AuditEntry, AuditLog
-
+from macroa.kernel.events import Event, EventBus
 
 # ================================================================== NetworkDriver
 
@@ -118,7 +113,10 @@ def test_wildcard_subscriber():
 def test_unsubscribe():
     bus = EventBus()
     calls = []
-    handler = lambda e: calls.append(e)
+
+    def handler(e):
+        calls.append(e)
+
     bus.subscribe("evt", handler)
     bus.emit(Event(event_type="evt", source="x"))
     bus.unsubscribe("evt", handler)
@@ -163,8 +161,10 @@ def test_thread_safe_emit():
             bus.emit(Event(event_type="t", source="thread"))
 
     threads = [threading.Thread(target=emit_many) for _ in range(4)]
-    for t in threads: t.start()
-    for t in threads: t.join()
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
     assert len(counts) == 200
 
 

@@ -25,7 +25,6 @@ import shutil
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -104,7 +103,7 @@ def _install_from_local(src: Path, tools_dir: Path, force: bool) -> Path:
 def _install_from_git(url: str, tools_dir: Path, force: bool) -> Path:
     """Clone a git repo (or a subdirectory within it) into tools_dir."""
     # Parse optional #subdir fragment
-    subdir: Optional[str] = None
+    subdir: str | None = None
     if "#" in url:
         url, subdir = url.split("#", 1)
 

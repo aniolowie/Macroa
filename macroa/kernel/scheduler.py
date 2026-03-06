@@ -19,10 +19,10 @@ import sqlite3
 import threading
 import time
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Callable, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -36,13 +36,13 @@ class ScheduledTask:
     session_id: str      # kernel session to run under
     enabled: bool = True
     created_at: float = field(default_factory=time.time)
-    last_run_at: Optional[float] = None
+    last_run_at: float | None = None
     next_run_at: float = field(default_factory=time.time)
     run_count: int = 0
-    last_error: Optional[str] = None
+    last_error: str | None = None
 
 
-def _parse_next_run(schedule: str, now: float, last_run_at: Optional[float]) -> Optional[float]:
+def _parse_next_run(schedule: str, now: float, last_run_at: float | None) -> float | None:
     """
     Calculate the next scheduled run time given the spec and current time.
     Returns None if the task should be removed (one-shot already fired).
@@ -125,7 +125,7 @@ class Scheduler:
         self._lock = threading.Lock()
         self._conn = sqlite3.connect(str(db_path), check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
-        self._thread: Optional[threading.Thread] = None
+        self._thread: threading.Thread | None = None
         self._stop_event = threading.Event()
         self._create_schema()
 
@@ -257,7 +257,7 @@ class Scheduler:
 
     def _fire(self, task: ScheduledTask, now: float) -> None:
         logger.info("Scheduler firing task %r (%s)", task.label, task.task_id[:8])
-        error: Optional[str] = None
+        error: str | None = None
         try:
             self._run_fn(task.command, task.session_id)
         except Exception as exc:
