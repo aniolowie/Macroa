@@ -40,8 +40,8 @@ def test_write_env_creates_file(tmp_path, monkeypatch):
 
     assert env_path.exists()
     content = env_path.read_text()
-    assert "OPENROUTER_API_KEY=sk-or-testkey1234567890" in content
-    assert "MACROA_USER_NAME=Alice" in content
+    assert 'OPENROUTER_API_KEY="sk-or-testkey1234567890"' in content
+    assert 'MACROA_USER_NAME="Alice"' in content
 
 
 def test_write_env_custom_models(tmp_path, monkeypatch):
@@ -56,7 +56,38 @@ def test_write_env_custom_models(tmp_path, monkeypatch):
     )
 
     content = env_path.read_text()
-    assert "MACROA_MODEL_NANO=openai/gpt-4.5-mini" in content
+    assert 'MACROA_MODEL_NANO="openai/gpt-4.5-mini"' in content
+
+
+def test_write_env_quotes_values_with_hash(tmp_path, monkeypatch):
+    """Values containing ' #' must be double-quoted so dotenv does not treat
+    the hash as a comment delimiter and silently truncate the value."""
+    from dotenv import dotenv_values
+
+    env_path = tmp_path / ".env"
+    monkeypatch.setattr(wiz, "_MACROA_DIR", tmp_path)
+    monkeypatch.setattr(wiz, "_ENV_PATH", env_path)
+
+    wiz._write_env(api_key="sk-or-abc", name="Alice #1", models={})
+
+    # Read back via dotenv — must survive the round-trip intact
+    parsed = dotenv_values(env_path)
+    assert parsed["MACROA_USER_NAME"] == "Alice #1"
+
+
+def test_write_env_quotes_values_with_embedded_double_quote(tmp_path, monkeypatch):
+    """Embedded double quotes in a value must be escaped so the quoted .env
+    line remains syntactically valid."""
+    from dotenv import dotenv_values
+
+    env_path = tmp_path / ".env"
+    monkeypatch.setattr(wiz, "_MACROA_DIR", tmp_path)
+    monkeypatch.setattr(wiz, "_ENV_PATH", env_path)
+
+    wiz._write_env(api_key="sk-or-abc", name='Say "hello"', models={})
+
+    parsed = dotenv_values(env_path)
+    assert parsed["MACROA_USER_NAME"] == 'Say "hello"'
 
 
 def test_write_env_injects_into_process(tmp_path, monkeypatch):
