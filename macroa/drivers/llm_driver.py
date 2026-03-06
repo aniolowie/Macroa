@@ -81,6 +81,40 @@ class LLMDriver:
         except Exception as exc:
             raise LLMDriverError(f"Unexpected LLM error: {exc}") from exc
 
+    def complete_with_tools(
+        self,
+        messages: list[dict],
+        tools: list[dict],
+        tier: ModelTier,
+        *,
+        temperature: float = 0.2,
+        max_tokens: int = 4096,
+    ) -> tuple[str, list]:
+        """Call LLM with tool schemas. Returns (content, tool_calls).
+
+        content   — text the model produced alongside (or instead of) tool calls
+        tool_calls — list of ChatCompletionMessageToolCall objects; empty when done
+        """
+        model_id = self._model_map.get(tier)
+        if not model_id:
+            raise LLMDriverError(f"No model mapped for tier {tier!r}")
+
+        try:
+            response = self._client.chat.completions.create(
+                model=model_id,
+                messages=messages,
+                tools=tools,
+                tool_choice="auto",
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
+            msg = response.choices[0].message
+            return (msg.content or "", list(msg.tool_calls or []))
+        except APIError as exc:
+            raise LLMDriverError(f"OpenRouter API error: {exc}") from exc
+        except Exception as exc:
+            raise LLMDriverError(f"Unexpected LLM error: {exc}") from exc
+
     def stream(
         self,
         messages: list[dict[str, str]],
