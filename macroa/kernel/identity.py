@@ -3,6 +3,20 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from macroa.stdlib.schema import SkillManifest
+
+# Populated at kernel boot (after skill + tool registries are loaded)
+_runtime_skills: list["SkillManifest"] = []
+
+
+def set_runtime_skills(manifests: "list[SkillManifest]") -> None:
+    """Called once by the kernel after all skills and tools are registered."""
+    global _runtime_skills
+    _runtime_skills = list(manifests)
+
 
 _MACROA_DIR = Path.home() / ".macroa"
 _IDENTITY_DIR = _MACROA_DIR / "identity"
@@ -31,14 +45,14 @@ Offer suggestions if they're stuck. Have fun with it.
 
 ## Your Actual Capabilities
 
-You are running on Macroa, a personal AI OS. You have access to these tools:
-- write_file — create or overwrite any file (use this to write IDENTITY.md etc.)
-- read_file — read any file
-- run_command — run shell commands (safe ones run freely; dangerous ones need approval)
-- remember — store a persistent fact in memory
-- recall — search stored memories
+You are running on Macroa, a personal AI OS. Your core capabilities:
+- Read and write files anywhere on the system (file_skill, vfs_skill)
+- Run shell commands — safe ones freely, elevated ones need approval (shell_skill)
+- Store and retrieve persistent facts across sessions (memory_skill)
+- Browse the web and fetch URLs (research_skill)
+- Any user-installed tools appear automatically (run: macroa tools list)
 
-When asked what you can do, describe these specific capabilities — not generic LLM abilities.
+When asked what you can do, describe these capabilities — not generic LLM abilities.
 
 ## After You Know Who You Are
 
@@ -57,23 +71,43 @@ _FALLBACK = (
     "If you are uncertain, say so rather than guessing."
 )
 
-_CAPABILITIES_SECTION = """\
+def _build_capabilities_section() -> str:
+    """Build the capabilities section from the live skill/tool registry."""
+    if not _runtime_skills:
+        # Fallback before kernel boot (should not normally appear in responses)
+        return (
+            "\n\n## Your Macroa Capabilities\n\n"
+            "You are running on Macroa, a personal AI OS.\n"
+            "Your workspace lives at ~/.macroa/. Identity files are in ~/.macroa/identity/.\n"
+            "When asked what you can do, list your available skills.\n"
+            "Never describe yourself as a generic LLM."
+        )
 
-## Your Macroa Capabilities
+    lines = [
+        "",
+        "## Your Macroa Capabilities",
+        "",
+        "You are running on Macroa, a personal AI OS. You have these registered skills and tools:",
+    ]
+    for m in sorted(_runtime_skills, key=lambda s: s.name):
+        # Strip the "[tool vX.Y.Z] " prefix injected by ToolRegistry for cleaner display
+        desc = m.description
+        if desc.startswith("[tool v"):
+            closing = desc.find("] ")
+            if closing != -1:
+                desc = desc[closing + 2:]
+        # Truncate long descriptions to keep the prompt tight
+        if len(desc) > 120:
+            desc = desc[:117] + "…"
+        lines.append(f"- **{m.name}** — {desc}")
 
-You are running on Macroa, a personal AI OS. You have these specific tools:
-- **write_file** — create or overwrite any file (you used this to write your identity files)
-- **read_file** — read any file on the system
-- **run_command** — run shell commands (safe commands run freely; elevated ones need approval)
-- **remember** — store a persistent fact in memory
-- **recall** — search stored memories
-- **memory_skill** — store/retrieve named facts ("remember that...", "what's my...")
-- **file_skill** — read/write/list files directly
-- **shell_skill** — run shell commands directly (prefix with ! or $)
-
-Your workspace lives at ~/.macroa/. Identity files are in ~/.macroa/identity/.
-When asked what you can do, describe these specific capabilities. Never describe yourself \
-as a generic LLM."""
+    lines += [
+        "",
+        "Your workspace lives at ~/.macroa/. Identity files are in ~/.macroa/identity/.",
+        "When asked what you can do, describe these specific skills and tools.",
+        "Never describe yourself as a generic LLM.",
+    ]
+    return "\n".join(lines)
 
 
 def _read(path: Path) -> str:
@@ -117,4 +151,4 @@ def build_system_prompt() -> str:
         parts.append(f"# Your Soul\n{soul}")
 
     base = "\n\n".join(parts) if parts else _FALLBACK
-    return base + _CAPABILITIES_SECTION
+    return base + _build_capabilities_section()
