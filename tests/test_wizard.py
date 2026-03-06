@@ -59,6 +59,36 @@ def test_write_env_custom_models(tmp_path, monkeypatch):
     assert 'MACROA_MODEL_NANO="openai/gpt-4.5-mini"' in content
 
 
+def test_rerun_preserves_custom_models(tmp_path, monkeypatch):
+    """Rerunning the wizard and keeping current models must not silently drop
+    custom MACROA_MODEL_* settings from the written .env file."""
+    from dotenv import dotenv_values
+
+    env_path = tmp_path / ".env"
+    monkeypatch.setattr(wiz, "_MACROA_DIR", tmp_path)
+    monkeypatch.setattr(wiz, "_ENV_PATH", env_path)
+
+    # Simulate existing custom config in the environment
+    monkeypatch.setenv("MACROA_MODEL_NANO", "openai/gpt-4.5-mini")
+    monkeypatch.setenv("MACROA_MODEL_HAIKU", "anthropic/claude-haiku-4-5")
+    monkeypatch.setenv("MACROA_MODEL_SONNET", "anthropic/claude-sonnet-4-6")
+    monkeypatch.setenv("MACROA_MODEL_OPUS", "anthropic/claude-opus-4-6")
+
+    # _step_models returns the current config when user keeps settings
+    models = {
+        "MACROA_MODEL_NANO":   "openai/gpt-4.5-mini",
+        "MACROA_MODEL_HAIKU":  "anthropic/claude-haiku-4-5",
+        "MACROA_MODEL_SONNET": "anthropic/claude-sonnet-4-6",
+        "MACROA_MODEL_OPUS":   "anthropic/claude-opus-4-6",
+    }
+    wiz._write_env(api_key="sk-or-abc", name="Alice", models=models)
+
+    parsed = dotenv_values(env_path)
+    # Custom NANO setting must survive the rewrite
+    assert parsed["MACROA_MODEL_NANO"] == "openai/gpt-4.5-mini"
+    assert "MACROA_MODEL_SONNET" in parsed
+
+
 def test_write_env_quotes_values_with_hash(tmp_path, monkeypatch):
     """Values containing ' #' must be double-quoted so dotenv does not treat
     the hash as a comment delimiter and silently truncate the value."""

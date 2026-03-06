@@ -136,21 +136,26 @@ def _step_name() -> str:
 
 
 def _step_models() -> dict[str, str]:
-    _defaults = {
+    _hardcoded_defaults = {
         "MACROA_MODEL_NANO":   "google/gemini-2.5-flash-lite",
         "MACROA_MODEL_HAIKU":  "anthropic/claude-haiku-4-5",
         "MACROA_MODEL_SONNET": "anthropic/claude-sonnet-4-6",
         "MACROA_MODEL_OPUS":   "anthropic/claude-opus-4-6",
     }
+    # Use the currently active values as the baseline so reruns show real settings.
+    current = {
+        key: os.environ.get(key, default)
+        for key, default in _hardcoded_defaults.items()
+    }
 
     table = Table(show_header=True, header_style="bold", box=None, padding=(0, 2))
     table.add_column("Tier", style="bold cyan")
     table.add_column("Role")
-    table.add_column("Default model", style="dim")
-    table.add_row("NANO",   "Background routing — always on, cheapest",   _defaults["MACROA_MODEL_NANO"])
-    table.add_row("HAIKU",  "Lightweight tasks — fast and affordable",    _defaults["MACROA_MODEL_HAIKU"])
-    table.add_row("SONNET", "Quality work — the everyday workhorse",      _defaults["MACROA_MODEL_SONNET"])
-    table.add_row("OPUS",   "Heavy reasoning — most powerful, use sparingly", _defaults["MACROA_MODEL_OPUS"])
+    table.add_column("Current model", style="dim")
+    table.add_row("NANO",   "Background routing — always on, cheapest",       current["MACROA_MODEL_NANO"])
+    table.add_row("HAIKU",  "Lightweight tasks — fast and affordable",        current["MACROA_MODEL_HAIKU"])
+    table.add_row("SONNET", "Quality work — the everyday workhorse",          current["MACROA_MODEL_SONNET"])
+    table.add_row("OPUS",   "Heavy reasoning — most powerful, use sparingly", current["MACROA_MODEL_OPUS"])
 
     _console.print(
         Panel(
@@ -168,28 +173,27 @@ def _step_models() -> dict[str, str]:
 
     try:
         keep = Confirm.ask(
-            "  Keep the defaults? (recommended for new users)",
+            "  Keep current models?",
             default=True,
         )
     except (KeyboardInterrupt, EOFError):
         keep = True
 
     if keep:
-        _console.print("  [green]✓ Using default models.[/green]\n")
-        return {}   # empty = don't write, settings.py will use its own defaults
+        _console.print("  [green]✓ Keeping current models.[/green]\n")
+        # Return the full current config so _write_env preserves every tier
+        # explicitly — returning {} would silently drop custom settings on rerun.
+        return dict(current)
 
-    # Advanced: let user override each tier
+    # Advanced: let user edit each tier, starting from their current values
     models: dict[str, str] = {}
-    for key, default in _defaults.items():
+    for key, current_val in current.items():
         tier = key.replace("MACROA_MODEL_", "")
         try:
-            val = Prompt.ask(f"  {tier}", default=default).strip()
+            val = Prompt.ask(f"  {tier}", default=current_val).strip()
         except (KeyboardInterrupt, EOFError):
-            val = default
-        if val and val != default:
-            models[key] = val
-        elif val == default:
-            pass   # don't write, let settings.py default handle it
+            val = current_val
+        models[key] = val or current_val
     _console.print()
     return models
 
