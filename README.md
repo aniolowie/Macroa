@@ -4,6 +4,12 @@ Your personal AI operating system. It runs on your machine, remembers everything
 
 **Core design rule:** deterministic operations never call an LLM. AI is reserved for ambiguity, reasoning, and generation — keeping costs low and behavior predictable.
 
+
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/image?repos=aniolowie/Macroa&type=date&legend=top-left)](https://www.star-history.com/?repos=aniolowie%2FMacroa&type=date&legend=top-left)
+
 ---
 
 ## What it does for you
