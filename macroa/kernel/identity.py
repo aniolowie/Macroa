@@ -9,10 +9,10 @@ if TYPE_CHECKING:
     from macroa.stdlib.schema import SkillManifest
 
 # Populated at kernel boot (after skill + tool registries are loaded)
-_runtime_skills: list["SkillManifest"] = []
+_runtime_skills: list[SkillManifest] = []
 
 
-def set_runtime_skills(manifests: "list[SkillManifest]") -> None:
+def set_runtime_skills(manifests: list[SkillManifest]) -> None:
     """Called once by the kernel after all skills and tools are registered."""
     global _runtime_skills
     _runtime_skills = list(manifests)
