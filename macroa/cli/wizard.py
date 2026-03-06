@@ -243,6 +243,15 @@ def _load_macroa_env() -> None:
     if _ENV_PATH.exists():
         try:
             from dotenv import load_dotenv
+        except ImportError:
+            # python-dotenv is optional; if it's not installed, just skip loading.
+            return
+
+        try:
             load_dotenv(_ENV_PATH, override=False)
-        except Exception:
-            pass
+        except Exception as exc:
+            # Don't crash if the env file is unreadable or invalid, but surface it.
+            _console.print(
+                f"[yellow]Warning:[/yellow] Failed to load env file at "
+                f"[dim]{_ENV_PATH}[/dim]: {exc}"
+            )
