@@ -6,7 +6,7 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [0.2.2] — 2026-03-06
+## [0.2.3] — 2026-03-06
 
 ### Fixed
 - Include `macroa/web/static/*` in `pyproject.toml` package-data so `dashboard.html` is bundled in the wheel
