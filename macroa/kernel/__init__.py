@@ -83,8 +83,10 @@ def _get_registry() -> SkillRegistry:
         _registry.load_from_dir(settings.skills_dir)
 
         # Load tools (built-in examples + user-installed)
+        # Builtin examples are reference implementations; skip setup() for them
+        # (setup() is only meaningful for user-installed, fully-configured tools).
         _tool_registry = ToolRegistry()
-        _tool_registry.load_from_dir(settings.builtin_tools_dir, drivers)
+        _tool_registry.load_from_dir(settings.builtin_tools_dir, None)
         _tool_registry.load_from_dir(settings.tools_dir, drivers)
         _tool_registry.inject_into(_registry)
 

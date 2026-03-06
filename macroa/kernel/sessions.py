@@ -131,8 +131,18 @@ class SessionStore:
     # ------------------------------------------------------------------ context persistence
 
     def save_context(self, session_id: str, entries: list[ContextEntry]) -> None:
-        """Overwrite persisted context for a session (called after each turn)."""
+        """Overwrite persisted context for a session (called after each turn).
+
+        Anonymous sessions (UUIDs not pre-registered via get_or_create) are
+        auto-created here so the context_entries foreign key never fails.
+        """
         with self._lock:
+            now = time.time()
+            self._conn.execute(
+                "INSERT OR IGNORE INTO sessions (session_id, name, created_at, updated_at)"
+                " VALUES (?, ?, ?, ?)",
+                (session_id, f"anon-{session_id[:8]}", now, now),
+            )
             self._conn.execute(
                 "DELETE FROM context_entries WHERE session_id = ?", (session_id,)
             )

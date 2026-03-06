@@ -85,6 +85,18 @@ def test_save_and_load_context(tmp_path):
     assert loaded[1].role == "assistant"
 
 
+def test_save_context_anonymous_session(tmp_path):
+    """save_context with an unregistered UUID must not raise FOREIGN KEY error."""
+    store = _store(tmp_path)
+    anon_id = "aaaaaaaa-0000-0000-0000-000000000001"
+    # The session is NOT pre-registered via get_or_create — this is the
+    # anonymous-session path taken by kernel.run() / get_session_id().
+    store.save_context(anon_id, [_entry("user", "hello"), _entry("assistant", "hi")])
+    loaded = store.load_context(anon_id)
+    assert len(loaded) == 2
+    assert loaded[0].content == "hello"
+
+
 def test_context_overwrite(tmp_path):
     store = _store(tmp_path)
     meta = store.get_or_create("overwrite")
