@@ -1,12 +1,14 @@
-"""Agent skill — registered for routing; dispatched directly by the kernel."""
+"""Agent skill — registered for routing; dispatched directly by the kernel.
+
+The registry requires a callable run() to load this module, but the kernel
+bypasses it and dispatches agent turns via AgentLoop directly so that
+confirm_callback and session_approved can be threaded through cleanly.
+"""
 
 from __future__ import annotations
 
-from macroa.stdlib.schema import SkillManifest
+from macroa.stdlib.schema import Context, DriverBundle, Intent, SkillManifest, SkillResult
 
-# MANIFEST is all the registry needs — kernel dispatches agent turns directly
-# via AgentLoop rather than calling run() here, so that confirm_callback and
-# session_approved can be threaded in without polluting the skill interface.
 MANIFEST = SkillManifest(
     name="agent_skill",
     description=(
@@ -23,3 +25,15 @@ MANIFEST = SkillManifest(
     model_tier=None,
     deterministic=False,
 )
+
+
+def run(intent: Intent, context: Context, drivers: DriverBundle) -> SkillResult:
+    # Kernel intercepts agent_skill before reaching here.
+    # This stub exists so the skill registry can load the module.
+    return SkillResult(
+        output="",
+        success=False,
+        error="agent_skill.run() should never be called directly — kernel dispatch error",
+        turn_id=intent.turn_id,
+        model_tier=intent.model_tier,
+    )

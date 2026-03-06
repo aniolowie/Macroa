@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "macroa"
-version = "0.2.5"
+version = "0.2.7"
 description = "Personal AI OS — kernel, drivers, skills, tools, and a web API"
 readme = "README.md"
 license = { file = "LICENSE" }

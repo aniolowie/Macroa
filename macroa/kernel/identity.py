@@ -56,6 +56,24 @@ _FALLBACK = (
     "If you are uncertain, say so rather than guessing."
 )
 
+_CAPABILITIES_SECTION = """\
+
+## Your Macroa Capabilities
+
+You are running on Macroa, a personal AI OS. You have these specific tools:
+- **write_file** — create or overwrite any file (you used this to write your identity files)
+- **read_file** — read any file on the system
+- **run_command** — run shell commands (safe commands run freely; elevated ones need approval)
+- **remember** — store a persistent fact in memory
+- **recall** — search stored memories
+- **memory_skill** — store/retrieve named facts ("remember that...", "what's my...")
+- **file_skill** — read/write/list files directly
+- **shell_skill** — run shell commands directly (prefix with ! or $)
+
+Your workspace and config live in ~/.macroa/ — that's where your identity files are too.
+When asked what you can do, describe these specific capabilities. Never describe yourself \
+as a generic LLM."""
+
 
 def _read(path: Path) -> str:
     try:
@@ -97,4 +115,5 @@ def build_system_prompt() -> str:
     if soul:
         parts.append(f"# Your Soul\n{soul}")
 
-    return "\n\n".join(parts) if parts else _FALLBACK
+    base = "\n\n".join(parts) if parts else _FALLBACK
+    return base + _CAPABILITIES_SECTION

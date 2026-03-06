@@ -158,7 +158,9 @@ def test_shell_skill_no_command(tmp_path):
     from macroa.skills.shell_skill import run
     intent = _intent("shell_skill", {})
     result = run(intent, _ctx(), _make_drivers(tmp_path))
-    assert not result.success
+    # Now returns a helpful prompt instead of an error
+    assert result.success
+    assert "command" in result.output.lower()
 
 
 def test_memory_skill_set_get(tmp_path):
