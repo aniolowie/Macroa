@@ -6,6 +6,21 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.2.1] — 2026-03-06
+
+### Added
+- **Setup wizard** — `macroa setup` runs an interactive first-run wizard that configures the API key, display name, and model preferences; wizard auto-triggers on first `macroa` invocation when no key is found (`macroa/cli/wizard.py`)
+- **Persistent user config** — wizard writes to `~/.macroa/.env` so configuration survives pip reinstalls and works across projects; settings now load `~/.macroa/.env` before any project `.env`
+- **`MACROA_USER_NAME`** env var — stored by wizard, shown in banner and available to skills
+- **Startup banner** — replaced the bare one-liner with a Rich panel showing version, greeting, model stack (NANO/HAIKU/SONNET/OPUS with current model IDs), and lifetime activity summary
+- **`macroa setup` command** — re-run wizard at any time to change API key, name, or model choices
+
+### Changed
+- `macroa/cli/renderer.py` — `print_banner()` now renders a two-column panel (identity + model stack) with a quick-reference footer
+- `macroa/config/settings.py` — added `user_name` field; loads `~/.macroa/.env` with `override=False` before project `.env`
+
+---
+
 ## [0.2.0] — 2026-03-06
 
 ### Added

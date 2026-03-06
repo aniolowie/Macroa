@@ -10,6 +10,7 @@ import click
 from rich.prompt import Prompt
 from rich.table import Table
 
+from macroa.cli import wizard as _wizard
 import macroa.kernel as kernel
 from macroa.cli.renderer import (
     console,
@@ -44,6 +45,15 @@ def _resolve_session(name_or_id: str | None) -> str:
 def cli(ctx: click.Context, debug: bool, session: str | None) -> None:
     """Macroa — personal AI OS."""
     if ctx.invoked_subcommand is None:
+        # Run setup wizard on first use (no API key configured yet)
+        if _wizard.needs_setup():
+            _wizard.run_wizard()
+            # Invalidate settings cache so the newly written key is picked up
+            try:
+                from macroa.config.settings import get_settings
+                get_settings.cache_clear()
+            except Exception:
+                pass
         _repl(debug=debug, session_name=session)
 
 
@@ -275,6 +285,17 @@ def tools_list() -> None:
     for t in installed:
         table.add_row(t["name"], t["description"] or "—", t["path"])
     console.print(table)
+
+
+@cli.command()
+def setup() -> None:
+    """Run the interactive setup wizard (configure API key, name, models)."""
+    _wizard.run_wizard(rerun=True)
+    try:
+        from macroa.config.settings import get_settings
+        get_settings.cache_clear()
+    except Exception:
+        pass
 
 
 @cli.command()

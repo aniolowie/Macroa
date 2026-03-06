@@ -9,7 +9,10 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-load_dotenv()
+# Load user-level config first (written by wizard), then project .env.
+# override=False means project .env / shell env vars always win.
+load_dotenv(Path.home() / ".macroa" / ".env", override=False)
+load_dotenv(override=False)
 
 
 @dataclass(frozen=True)
@@ -33,6 +36,7 @@ class Settings:
     scheduler_db_path: Path  # scheduled tasks
     scheduler_poll: int      # seconds between scheduler ticks
     network_timeout: int     # default HTTP timeout in seconds
+    user_name: str           # display name set during setup wizard
 
     @property
     def model_map(self) -> dict[str, str]:
@@ -93,4 +97,5 @@ def get_settings() -> Settings:
         ).expanduser(),
         scheduler_poll=int(os.environ.get("MACROA_SCHEDULER_POLL", "10")),
         network_timeout=int(os.environ.get("MACROA_NETWORK_TIMEOUT", "30")),
+        user_name=os.environ.get("MACROA_USER_NAME", ""),
     )
