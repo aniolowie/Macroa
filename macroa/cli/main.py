@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import logging
+import signal
 import sys
 import time
+from collections.abc import Callable
 
 import click
 from rich.prompt import Prompt
@@ -22,6 +24,30 @@ from macroa.cli.renderer import (
 )
 
 logging.basicConfig(level=logging.WARNING)
+
+
+def _make_confirm_callback() -> Callable[[str, str], bool]:
+    """Return a Rich-powered sudo confirm callback with a 30 s SIGALRM timeout."""
+    def confirm(command: str, reason: str) -> bool:
+        def _timeout(signum: int, frame: object) -> None:  # noqa: ARG001
+            raise TimeoutError
+
+        old_handler = signal.signal(signal.SIGALRM, _timeout)
+        signal.alarm(30)
+        try:
+            console.print("\n[bold yellow]⚡ sudo[/bold yellow] Agent wants to run:")
+            console.print(f"  [bold]{command}[/bold]")
+            console.print(f"  [dim]{reason} — auto-denies in 30 s[/dim]")
+            answer = Prompt.ask("  Allow?", choices=["y", "n"], default="n")
+            return answer == "y"
+        except (TimeoutError, KeyboardInterrupt, EOFError):
+            console.print("\n[dim]Timed out — denied.[/dim]")
+            return False
+        finally:
+            signal.alarm(0)
+            signal.signal(signal.SIGALRM, old_handler)
+
+    return confirm
 
 
 def _resolve_session(name_or_id: str | None) -> str:
@@ -178,6 +204,7 @@ def schedule_delete(task_id: str) -> None:
 def _repl(debug: bool, session_name: str | None) -> None:
     print_banner()
     session_id = _resolve_session(session_name)
+    confirm_callback = _make_confirm_callback()
     if session_name:
         render_info(f"Resuming session: [bold]{session_name}[/bold]")
     debug_mode = debug
@@ -213,15 +240,20 @@ def _repl(debug: bool, session_name: str | None) -> None:
             print_help()
             continue
 
-        _execute(raw, session_id=session_id, debug=debug_mode)
+        _execute(raw, session_id=session_id, debug=debug_mode, confirm_callback=confirm_callback)
 
 
 # ------------------------------------------------------------------ shared
 
 
-def _execute(raw: str, session_id: str, debug: bool) -> None:
+def _execute(
+    raw: str,
+    session_id: str,
+    debug: bool,
+    confirm_callback: Callable[[str, str], bool] | None = None,
+) -> None:
     try:
-        result = kernel.run(raw, session_id=session_id)
+        result = kernel.run(raw, session_id=session_id, confirm_callback=confirm_callback)
         render_result(result, debug=debug)
         if not result.success:
             sys.exit(1)

@@ -6,6 +6,8 @@ import logging
 import threading
 import time
 import uuid
+from collections.abc import Callable
+from pathlib import Path
 
 from macroa.config.settings import get_settings
 from macroa.config.skill_registry import SkillRegistry
@@ -28,9 +30,26 @@ from macroa.tools.registry import ToolRegistry
 
 logger = logging.getLogger(__name__)
 
+ConfirmCallback = Callable[[str, str], bool]
+
 # Thread-safe session store: session_id → ContextManager (in-process cache)
 _sessions: dict[str, ContextManager] = {}
 _sessions_lock = threading.Lock()
+
+# Per-session sudo approved pattern keys (cleared when session is cleared)
+_sudo_approved: dict[str, set[str]] = {}
+_sudo_lock = threading.Lock()
+
+
+def _get_sudo_approved(session_id: str) -> set[str]:
+    with _sudo_lock:
+        if session_id not in _sudo_approved:
+            _sudo_approved[session_id] = set()
+        return _sudo_approved[session_id]
+
+
+def _is_first_boot() -> bool:
+    return not (Path.home() / ".macroa" / "IDENTITY.md").exists()
 
 # Module-level singletons (lazy-initialized)
 _drivers: DriverBundle | None = None
@@ -140,7 +159,11 @@ def _get_or_create_session(session_id: str) -> ContextManager:
         return _sessions[session_id]
 
 
-def run(raw_input: str, session_id: str | None = None) -> SkillResult:
+def run(
+    raw_input: str,
+    session_id: str | None = None,
+    confirm_callback: ConfirmCallback | None = None,
+) -> SkillResult:
     """
     Main kernel entry point.
 
@@ -172,35 +195,69 @@ def run(raw_input: str, session_id: str | None = None) -> SkillResult:
         session_id=session_id,
     ))
 
-    # Route — always NANO
+    # Route — always NANO (with keyword shortcut + HAIKU retry built in)
     router = Router(llm=drivers.llm, registry=registry)
     intent = router.route(raw_input, context_snapshot)
+
+    # First boot: no IDENTITY.md → force agent_skill for onboarding regardless of router
+    if _is_first_boot() and intent.skill_name != "shell_skill":
+        from macroa.stdlib.schema import ModelTier as _MT
+        intent = Intent(
+            raw=intent.raw,
+            skill_name="agent_skill",
+            parameters=intent.parameters,
+            model_tier=intent.model_tier if intent.model_tier != _MT.NANO else _MT.HAIKU,
+            routing_confidence=1.0,
+            turn_id=intent.turn_id,
+        )
+
     ctx_manager.add_user(turn_id=intent.turn_id, content=raw_input)
 
-    # Plan or single-dispatch
-    planner = Planner(llm=drivers.llm)
-    plan = planner.plan(raw_input, context_snapshot, registry)
+    bus.emit(Event(
+        event_type=Events.ROUTE_DECISION,
+        source="kernel",
+        payload={
+            "skill": intent.skill_name,
+            "confidence": intent.routing_confidence,
+            "tier": intent.model_tier.value,
+        },
+        session_id=session_id,
+    ))
 
-    if plan is not None:
-        bus.emit(Event(
-            event_type=Events.PLAN_CREATED,
-            source="kernel",
-            payload={"steps": len(plan.steps), "tiers": [s.model_tier.value for s in plan.steps]},
-            session_id=session_id,
-        ))
-        result = _execute_plan(
-            raw_input=raw_input,
-            plan=plan,
-            parent_turn_id=intent.turn_id,
-            context_snapshot=context_snapshot,
-            registry=registry,
+    # Agent turns are dispatched directly so confirm_callback + sudo state thread through
+    if intent.skill_name == "agent_skill":
+        from macroa.kernel.agent import AgentLoop
+        loop = AgentLoop(
             drivers=drivers,
-            planner=planner,
-            dispatcher=Dispatcher(registry=registry, drivers=drivers),
+            confirm_callback=confirm_callback,
+            session_approved=_get_sudo_approved(session_id),
         )
+        result = loop.run(intent, context_snapshot)
     else:
-        dispatcher = Dispatcher(registry=registry, drivers=drivers)
-        result = dispatcher.dispatch(intent, context_snapshot)
+        # Plan or single-dispatch for all other skills
+        planner = Planner(llm=drivers.llm)
+        plan = planner.plan(raw_input, context_snapshot, registry)
+
+        if plan is not None:
+            bus.emit(Event(
+                event_type=Events.PLAN_CREATED,
+                source="kernel",
+                payload={"steps": len(plan.steps), "tiers": [s.model_tier.value for s in plan.steps]},
+                session_id=session_id,
+            ))
+            result = _execute_plan(
+                raw_input=raw_input,
+                plan=plan,
+                parent_turn_id=intent.turn_id,
+                context_snapshot=context_snapshot,
+                registry=registry,
+                drivers=drivers,
+                planner=planner,
+                dispatcher=Dispatcher(registry=registry, drivers=drivers),
+            )
+        else:
+            dispatcher = Dispatcher(registry=registry, drivers=drivers)
+            result = dispatcher.dispatch(intent, context_snapshot)
 
     if not result.turn_id:
         result.turn_id = intent.turn_id
@@ -296,6 +353,8 @@ def clear_session(session_id: str) -> None:
     with _sessions_lock:
         if session_id in _sessions:
             _sessions[session_id].clear()
+    with _sudo_lock:
+        _sudo_approved.pop(session_id, None)
     _get_session_store().save_context(session_id, [])
 
 
