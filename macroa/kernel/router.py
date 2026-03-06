@@ -153,7 +153,8 @@ class Router:
         if keyword_skill:
             entry = self._registry.get(keyword_skill)
             pinned = entry.manifest.model_tier if entry else None
-            logger.debug("Router keyword-shortcut: %r → %s", raw_input[:40], keyword_skill)
+            safe_snippet = raw_input[:40].replace("\r", "\\r").replace("\n", "\\n")
+            logger.debug("Router keyword-shortcut: %r → %s", safe_snippet, keyword_skill)
             return Intent(
                 raw=raw_input,
                 skill_name=keyword_skill,
