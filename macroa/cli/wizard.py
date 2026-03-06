@@ -138,7 +138,7 @@ def _step_name() -> str:
 def _step_models() -> dict[str, str]:
     _hardcoded_defaults = {
         "MACROA_MODEL_NANO":   "google/gemini-2.5-flash-lite",
-        "MACROA_MODEL_HAIKU":  "anthropic/claude-haiku-4-5",
+        "MACROA_MODEL_HAIKU":  "google/gemini-2.5-flash-lite",
         "MACROA_MODEL_SONNET": "anthropic/claude-sonnet-4-6",
         "MACROA_MODEL_OPUS":   "anthropic/claude-opus-4-6",
     }

@@ -26,6 +26,45 @@ from macroa.cli.renderer import (
 logging.basicConfig(level=logging.WARNING)
 
 
+# ── Research live feed ────────────────────────────────────────────────────────
+
+
+def _on_research_event(event: Event) -> None:  # type: ignore[name-defined]  # noqa: F821
+    """Print a styled progress line for each research pipeline event."""
+    p = event.payload
+    if event.event_type == "research.phase.start":
+        phase = p["phase"]
+        name = p["name"]
+        if phase == 1:
+            query_display = p.get("query", "")[:80]
+            console.print(f"\n[bold]Research[/bold]  [dim]{query_display}[/dim]")
+            console.print()
+        console.print(f"  [bold cyan]Phase {phase}[/bold cyan]  {name}…")
+    elif event.event_type == "research.subagent.start":
+        n, total, obj = p["subagent_n"], p["total"], p["objective"]
+        console.print(f"    [cyan][{n}/{total}][/cyan]  {obj[:90]}")
+    elif event.event_type == "research.tool.call":
+        tool, arg = p["tool"], p["arg"]
+        label = "search" if tool == "web_search" else "fetch "
+        arg_display = (arg[:72] + "…") if len(arg) > 72 else arg
+        console.print(f"          [dim]↳[/dim] [blue]{label}[/blue]  [dim]{arg_display}[/dim]")
+    elif event.event_type == "research.subagent.done":
+        n, total, c = p["subagent_n"], p["total"], p["citation_count"]
+        src = f"{c} source{'s' if c != 1 else ''}"
+        console.print(f"          [dim]✓ [{n}/{total}] {src}[/dim]")
+
+
+def _register_research_feed() -> None:
+    from macroa.kernel.events import Events, bus
+    for et in (
+        Events.RESEARCH_PHASE_START,
+        Events.RESEARCH_SUBAGENT_START,
+        Events.RESEARCH_TOOL_CALL,
+        Events.RESEARCH_SUBAGENT_DONE,
+    ):
+        bus.subscribe(et, _on_research_event)
+
+
 def _make_confirm_callback() -> Callable[[str, str], bool]:
     """Return a Rich-powered sudo confirm callback with a 30 s SIGALRM timeout."""
     def confirm(command: str, reason: str) -> bool:
@@ -89,6 +128,7 @@ def cli(ctx: click.Context, debug: bool, session: str | None) -> None:
 @click.option("--session", default=None, help="Session name or ID.")
 def run(input_text: tuple[str, ...], debug: bool, session: str | None) -> None:
     """Run a single command and exit."""
+    _register_research_feed()
     raw = " ".join(input_text)
     session_id = _resolve_session(session)
     _execute(raw, session_id=session_id, debug=debug)
@@ -202,6 +242,7 @@ def schedule_delete(task_id: str) -> None:
 
 
 def _repl(debug: bool, session_name: str | None) -> None:
+    _register_research_feed()
     print_banner()
     session_id = _resolve_session(session_name)
     confirm_callback = _make_confirm_callback()

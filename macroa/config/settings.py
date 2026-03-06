@@ -7,14 +7,17 @@ from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 
-from dotenv import load_dotenv
+from dotenv import find_dotenv, load_dotenv
 
 # Priority (highest to lowest):
 #   1. Shell environment variables — already in os.environ, load_dotenv never touches them
-#   2. Project .env (current directory) — loaded first, wins over wizard defaults
+#   2. Project .env (current working directory only) — loaded first, wins over wizard defaults
 #   3. ~/.macroa/.env — written by setup wizard, only fills gaps not set above
-# Both calls use override=False: whichever call runs first wins for each variable.
-load_dotenv(override=False)                                           # project .env
+# find_dotenv(usecwd=True) restricts the upward search to CWD, preventing the package's own
+# .env from being loaded when macroa is run from an unrelated directory.
+_project_dotenv = find_dotenv(usecwd=True)
+if _project_dotenv:
+    load_dotenv(_project_dotenv, override=False)                      # project .env (CWD only)
 load_dotenv(Path.home() / ".macroa" / ".env", override=False)        # wizard defaults
 
 
@@ -72,12 +75,19 @@ def get_settings() -> Settings:
     tools_dir = Path(tools_dir_str).expanduser()
     tools_dir.mkdir(parents=True, exist_ok=True)
 
+    def _clean_model(env_key: str, default: str) -> str:
+        """Strip accidental 'openrouter/' prefix that some users paste from docs."""
+        val = os.environ.get(env_key, default)
+        if val.startswith("openrouter/"):
+            val = val[len("openrouter/"):]
+        return val
+
     return Settings(
         openrouter_api_key=api_key,
-        model_nano=os.environ.get("MACROA_MODEL_NANO", "google/gemini-2.5-flash-lite"),
-        model_haiku=os.environ.get("MACROA_MODEL_HAIKU", "anthropic/claude-haiku-4-5"),
-        model_sonnet=os.environ.get("MACROA_MODEL_SONNET", "anthropic/claude-sonnet-4-6"),
-        model_opus=os.environ.get("MACROA_MODEL_OPUS", "anthropic/claude-opus-4-6"),
+        model_nano=_clean_model("MACROA_MODEL_NANO", "google/gemini-2.5-flash-lite"),
+        model_haiku=_clean_model("MACROA_MODEL_HAIKU", "google/gemini-2.5-flash-lite"),
+        model_sonnet=_clean_model("MACROA_MODEL_SONNET", "anthropic/claude-sonnet-4-6"),
+        model_opus=_clean_model("MACROA_MODEL_OPUS", "anthropic/claude-opus-4-6"),
         context_window=int(os.environ.get("MACROA_CONTEXT_WINDOW", "20")),
         memory_backend=os.environ.get("MACROA_MEMORY_BACKEND", "sqlite"),
         memory_db_path=Path(

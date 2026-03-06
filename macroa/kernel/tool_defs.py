@@ -5,7 +5,6 @@ from __future__ import annotations
 import html as _html_mod
 import logging
 import re
-import urllib.parse
 from collections.abc import Callable
 from pathlib import Path
 
@@ -244,46 +243,29 @@ def _recall(query: str, drivers: DriverBundle) -> str:
     return "\n".join(f"- {r['key']}: {r['value']}" for r in results)
 
 
-def _web_search(query: str, drivers: DriverBundle) -> str:
-    encoded = urllib.parse.quote_plus(query)
-    url = f"https://html.duckduckgo.com/html/?q={encoded}"
-    resp = drivers.network.get(
-        url,
-        headers={"User-Agent": "Mozilla/5.0 (compatible; Macroa/1.0)"},
-        timeout=15,
-    )
-    if not resp.success:
-        return f"[web_search error: {resp.error}]"
+def _web_search(query: str, drivers: DriverBundle) -> str:  # noqa: ARG001
+    try:
+        from ddgs import DDGS
+    except ImportError:
+        return "[web_search error: ddgs not installed — run: pip install ddgs]"
 
-    body = resp.body
-    link_pat = re.compile(
-        r'<a[^>]+class=["\']result__a["\'][^>]+href=["\']([^"\']+)["\'][^>]*>(.*?)</a>',
-        re.DOTALL | re.IGNORECASE,
-    )
-    snippet_pat = re.compile(
-        r'class=["\']result__snippet["\'][^>]*>(.*?)</(?:a|td|span)>',
-        re.DOTALL | re.IGNORECASE,
-    )
+    try:
+        with DDGS() as ddgs:
+            hits = list(ddgs.text(query, max_results=8))
+    except Exception as exc:
+        logger.warning("web_search failed: %s", exc)
+        return f"[web_search error: {exc}]"
 
-    links = link_pat.findall(body)
-    snippets_raw = snippet_pat.findall(body)
-
-    if not links:
+    if not hits:
         return f"[No search results found for: {query!r}]"
 
-    def _clean(html_text: str) -> str:
-        text = re.sub(r"<[^>]+>", "", html_text)
-        return " ".join(_html_mod.unescape(text).split())
-
-    snippets = [_clean(s) for s in snippets_raw]
     lines = [f"Web search results for: {query}\n"]
-    for i, (href, title_html) in enumerate(links[:8]):
-        title = _clean(title_html)
-        snippet = snippets[i] if i < len(snippets) else ""
-        lines.append(f"{i + 1}. {title}")
-        lines.append(f"   URL: {href}")
-        if snippet:
-            lines.append(f"   {snippet}")
+    for i, r in enumerate(hits):
+        lines.append(f"{i + 1}. {r.get('title', '(no title)')}")
+        lines.append(f"   URL: {r.get('href', '')}")
+        body = r.get("body", "")
+        if body:
+            lines.append(f"   {body[:200]}")
         lines.append("")
     return "\n".join(lines)
 
