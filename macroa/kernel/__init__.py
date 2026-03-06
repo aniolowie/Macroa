@@ -144,6 +144,11 @@ def _get_registry() -> SkillRegistry:
         _tool_registry.load_from_dir(settings.tools_dir, drivers)
         _tool_registry.inject_into(_registry)
 
+        # Publish the live skill list to the identity layer so the agent
+        # can accurately describe its own capabilities.
+        from macroa.kernel.identity import set_runtime_skills
+        set_runtime_skills(_registry.all_manifests())
+
         # Start heartbeat for any persistent tools
         _heartbeat = HeartbeatManager(
             tool_registry=_tool_registry,
