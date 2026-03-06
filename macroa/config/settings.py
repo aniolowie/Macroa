@@ -29,6 +29,7 @@ class Settings:
     builtin_tools_dir: Path  # example tools shipped with Macroa
     heartbeat_interval: int  # seconds between persistent-tool heartbeat ticks
     audit_db_path: Path      # audit log DB (separate from memory so wipes don't erase history)
+    sessions_db_path: Path   # named sessions + persisted context
     network_timeout: int     # default HTTP timeout in seconds
 
     @property
@@ -81,6 +82,9 @@ def get_settings() -> Settings:
         heartbeat_interval=int(os.environ.get("MACROA_HEARTBEAT_INTERVAL", "60")),
         audit_db_path=Path(
             os.environ.get("MACROA_AUDIT_DB_PATH", str(macroa_dir / "audit.db"))
+        ).expanduser(),
+        sessions_db_path=Path(
+            os.environ.get("MACROA_SESSIONS_DB_PATH", str(macroa_dir / "sessions.db"))
         ).expanduser(),
         network_timeout=int(os.environ.get("MACROA_NETWORK_TIMEOUT", "30")),
     )

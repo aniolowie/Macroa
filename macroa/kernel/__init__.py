@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import threading
 import time
 import uuid
 
@@ -19,14 +20,16 @@ from macroa.kernel.dispatcher import Dispatcher
 from macroa.kernel.events import Event, EventBus, Events, bus
 from macroa.kernel.planner import Planner
 from macroa.kernel.router import Router
+from macroa.kernel.sessions import SessionStore
 from macroa.stdlib.schema import DriverBundle, Intent, ModelTier, SkillResult
 from macroa.tools.heartbeat import HeartbeatManager
 from macroa.tools.registry import ToolRegistry
 
 logger = logging.getLogger(__name__)
 
-# Session store: session_id → ContextManager
+# Thread-safe session store: session_id → ContextManager (in-process cache)
 _sessions: dict[str, ContextManager] = {}
+_sessions_lock = threading.Lock()
 
 # Module-level singletons (lazy-initialized)
 _drivers: DriverBundle | None = None
@@ -34,6 +37,7 @@ _registry: SkillRegistry | None = None
 _tool_registry: ToolRegistry | None = None
 _heartbeat: HeartbeatManager | None = None
 _audit: AuditLog | None = None
+_session_store: SessionStore | None = None
 
 
 def _get_drivers() -> DriverBundle:
@@ -93,14 +97,30 @@ def _get_registry() -> SkillRegistry:
     return _registry
 
 
-def _get_or_create_session(session_id: str) -> ContextManager:
-    if session_id not in _sessions:
+def _get_session_store() -> SessionStore:
+    global _session_store
+    if _session_store is None:
         settings = get_settings()
-        _sessions[session_id] = ContextManager(
-            session_id=session_id,
-            window_size=settings.context_window,
-        )
-    return _sessions[session_id]
+        _session_store = SessionStore(db_path=settings.sessions_db_path)
+    return _session_store
+
+
+def _get_or_create_session(session_id: str) -> ContextManager:
+    with _sessions_lock:
+        if session_id not in _sessions:
+            settings = get_settings()
+            mgr = ContextManager(
+                session_id=session_id,
+                window_size=settings.context_window,
+            )
+            # Restore persisted context if this session has history
+            store = _get_session_store()
+            prior = store.load_context(session_id)
+            if prior:
+                for entry in prior:
+                    mgr._buffer.append(entry)
+            _sessions[session_id] = mgr
+        return _sessions[session_id]
 
 
 def run(raw_input: str, session_id: str | None = None) -> SkillResult:
@@ -169,6 +189,9 @@ def run(raw_input: str, session_id: str | None = None) -> SkillResult:
         result.turn_id = intent.turn_id
 
     ctx_manager.add_assistant(result)
+
+    # Persist context so named sessions survive restarts
+    _get_session_store().save_context(session_id, list(ctx_manager._buffer))
 
     elapsed_ms = int((time.monotonic() - t_start) * 1000)
 
@@ -253,12 +276,36 @@ def _execute_plan(
 
 
 def clear_session(session_id: str) -> None:
-    if session_id in _sessions:
-        _sessions[session_id].clear()
+    with _sessions_lock:
+        if session_id in _sessions:
+            _sessions[session_id].clear()
+    _get_session_store().save_context(session_id, [])
 
 
 def get_session_id() -> str:
     return str(uuid.uuid4())
+
+
+def resolve_session(name: str) -> str:
+    """Resolve a human-readable session name → UUID (creates if new)."""
+    meta = _get_session_store().get_or_create(name)
+    return meta.session_id
+
+
+def list_sessions():
+    """Return list of SessionMeta for all named sessions."""
+    return _get_session_store().list_sessions()
+
+
+def delete_session(name: str) -> bool:
+    """Delete a named session and its persisted context."""
+    store = _get_session_store()
+    rows = store.list_sessions()
+    target = next((r for r in rows if r.name == name), None)
+    if target:
+        with _sessions_lock:
+            _sessions.pop(target.session_id, None)
+    return store.delete(name)
 
 
 def get_audit_stats() -> dict:
@@ -267,9 +314,11 @@ def get_audit_stats() -> dict:
 
 
 def shutdown() -> None:
-    """Graceful shutdown — stop heartbeat, teardown tools."""
-    global _heartbeat, _tool_registry, _drivers
+    """Graceful shutdown — stop heartbeat, teardown tools, close session store."""
+    global _heartbeat, _tool_registry, _drivers, _session_store
     if _heartbeat is not None:
         _heartbeat.stop()
     if _tool_registry is not None and _drivers is not None:
         _tool_registry.teardown_all(_drivers)
+    if _session_store is not None:
+        _session_store.close()

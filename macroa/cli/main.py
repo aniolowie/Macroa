@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import sys
 import logging
+import time
 
 import click
 from rich.prompt import Prompt
+from rich.table import Table
 
 import macroa.kernel as kernel
 from macroa.cli.renderer import (
@@ -21,33 +23,85 @@ from macroa.cli.renderer import (
 logging.basicConfig(level=logging.WARNING)
 
 
+def _resolve_session(name_or_id: str | None) -> str:
+    """If a name is provided, resolve it to a session UUID. Otherwise create a new UUID."""
+    if not name_or_id:
+        return kernel.get_session_id()
+    # If it looks like a UUID, use it directly; otherwise treat as a name
+    import re
+    uuid_pattern = re.compile(
+        r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", re.IGNORECASE
+    )
+    if uuid_pattern.match(name_or_id):
+        return name_or_id
+    return kernel.resolve_session(name_or_id)
+
+
 @click.group(invoke_without_command=True)
 @click.pass_context
 @click.option("--debug", is_flag=True, default=False, help="Show debug metadata in output.")
-@click.option("--session", default=None, help="Session ID for context continuity.")
+@click.option("--session", default=None, help="Session name or ID for context continuity.")
 def cli(ctx: click.Context, debug: bool, session: str | None) -> None:
     """Macroa — personal AI OS."""
     if ctx.invoked_subcommand is None:
-        _repl(debug=debug, session_id=session)
+        _repl(debug=debug, session_name=session)
 
 
 @cli.command()
 @click.argument("input_text", nargs=-1, required=True)
 @click.option("--debug", is_flag=True, default=False, help="Show debug metadata.")
-@click.option("--session", default=None, help="Session ID.")
+@click.option("--session", default=None, help="Session name or ID.")
 def run(input_text: tuple[str, ...], debug: bool, session: str | None) -> None:
     """Run a single command and exit."""
     raw = " ".join(input_text)
-    session_id = session or kernel.get_session_id()
+    session_id = _resolve_session(session)
     _execute(raw, session_id=session_id, debug=debug)
+
+
+# ------------------------------------------------------------------ sessions subcommand
+
+
+@cli.group()
+def sessions() -> None:
+    """Manage named sessions."""
+
+
+@sessions.command("list")
+def sessions_list() -> None:
+    """List all named sessions."""
+    all_sessions = kernel.list_sessions()
+    if not all_sessions:
+        render_info("No named sessions found.")
+        return
+    table = Table(title="Macroa Sessions", show_lines=False)
+    table.add_column("Name", style="bold cyan")
+    table.add_column("Turns", justify="right")
+    table.add_column("Last active", style="dim")
+    table.add_column("ID", style="dim")
+    for s in all_sessions:
+        last = time.strftime("%Y-%m-%d %H:%M", time.localtime(s.updated_at))
+        table.add_row(s.name, str(s.turn_count), last, s.session_id[:8] + "…")
+    console.print(table)
+
+
+@sessions.command("delete")
+@click.argument("name")
+def sessions_delete(name: str) -> None:
+    """Delete a named session and its context."""
+    if kernel.delete_session(name):
+        render_info(f"Session '{name}' deleted.")
+    else:
+        render_error(f"Session '{name}' not found.")
 
 
 # ------------------------------------------------------------------ REPL
 
 
-def _repl(debug: bool, session_id: str | None) -> None:
+def _repl(debug: bool, session_name: str | None) -> None:
     print_banner()
-    session_id = session_id or kernel.get_session_id()
+    session_id = _resolve_session(session_name)
+    if session_name:
+        render_info(f"Resuming session: [bold]{session_name}[/bold]")
     debug_mode = debug
 
     while True:
