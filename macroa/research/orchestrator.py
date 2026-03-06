@@ -14,6 +14,7 @@ import logging
 import re
 from dataclasses import dataclass, field
 
+from macroa.kernel.events import Event, Events, bus
 from macroa.research.subagent import SubagentResult, SubagentRunner
 from macroa.research.synthesizer import synthesize, verify
 from macroa.stdlib.schema import DriverBundle, ModelTier
@@ -57,16 +58,24 @@ class ResearchOrchestrator:
 
     def run(self, query: str) -> tuple[str, list[str]]:
         """Execute all four phases. Returns (report_markdown, citation_urls)."""
-        logger.info("Research Phase 1 — planning: %r", query)
+        def _phase(n: int, name: str, description: str) -> None:
+            logger.info("Research Phase %d — %s", n, name.lower())
+            bus.emit(Event(
+                event_type=Events.RESEARCH_PHASE_START,
+                source="research.orchestrator",
+                payload={"phase": n, "name": name, "description": description, "query": query},
+            ))
+
+        _phase(1, "Planning", "Decomposing query into investigation trajectories")
         trajectories = self._plan(query)
 
-        logger.info("Research Phase 2 — investigating (%d subagents)", len(trajectories))
+        _phase(2, "Investigating", f"{len(trajectories)} subagents searching in parallel")
         results = self._investigate(trajectories)
 
-        logger.info("Research Phase 3 — verifying findings")
+        _phase(3, "Verifying", "Cross-checking findings for confidence")
         verified = verify(query, results, self._drivers)
 
-        logger.info("Research Phase 4 — synthesising report")
+        _phase(4, "Synthesising", "Combining verified findings into a report")
         report = synthesize(query, verified, self._drivers)
 
         return report, verified.all_citations
@@ -105,13 +114,19 @@ class ResearchOrchestrator:
 
     def _investigate(self, trajectories: list[Trajectory]) -> list[SubagentResult]:
         runner = SubagentRunner(self._drivers)
+        total = len(trajectories)
         results: list[SubagentResult] = []
         for i, traj in enumerate(trajectories):
-            logger.debug("Subagent %d/%d: %s", i + 1, len(trajectories), traj.objective)
+            bus.emit(Event(
+                event_type=Events.RESEARCH_SUBAGENT_START,
+                source="research.orchestrator",
+                payload={"subagent_n": i + 1, "total": total, "objective": traj.objective},
+            ))
             result = runner.run(
                 n=i + 1,
                 trajectory_id=traj.id,
                 objective=traj.objective,
+                total=total,
             )
             results.append(result)
         return results

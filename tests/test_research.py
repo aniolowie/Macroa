@@ -124,8 +124,8 @@ def test_subagent_fallback_when_no_findings_tag():
     drivers = _make_drivers(complete_with_tools_returns=(long_text, []))
     runner = SubagentRunner(drivers)
     result = runner.run(n=1, trajectory_id="t", objective="obj")
-    # Falls back to first 600 chars
-    assert len(result.findings) <= 600
+    # Falls back to full content (no truncation)
+    assert result.findings == long_text
 
 
 def test_subagent_filters_non_http_citations():

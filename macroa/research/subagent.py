@@ -7,6 +7,7 @@ import logging
 import re
 from dataclasses import dataclass, field
 
+from macroa.kernel.events import Event, Events, bus
 from macroa.stdlib.schema import DriverBundle, ModelTier
 
 logger = logging.getLogger(__name__)
@@ -86,7 +87,7 @@ class SubagentRunner:
     def __init__(self, drivers: DriverBundle) -> None:
         self._drivers = drivers
 
-    def run(self, n: int, trajectory_id: str, objective: str) -> SubagentResult:
+    def run(self, n: int, trajectory_id: str, objective: str, total: int = 1) -> SubagentResult:
         # Import executors here to avoid circular imports
         from macroa.kernel.tool_defs import _fetch_url, _web_search  # type: ignore[attr-defined]
 
@@ -129,12 +130,20 @@ class SubagentRunner:
                     logger.debug("Subagent %d tool: %s(%s)", n, name, list(args.keys()))
 
                     if name == "web_search":
-                        result = _web_search(args.get("query", ""), self._drivers)
+                        arg = args.get("query", "")
+                        result = _web_search(arg, self._drivers)
                     elif name == "fetch_url":
-                        result = _fetch_url(args.get("url", ""), self._drivers)
+                        arg = args.get("url", "")
+                        result = _fetch_url(arg, self._drivers)
                     else:
+                        arg = ""
                         result = f"[unknown tool: {name!r}]"
 
+                    bus.emit(Event(
+                        event_type=Events.RESEARCH_TOOL_CALL,
+                        source="research.subagent",
+                        payload={"subagent_n": n, "total": total, "tool": name, "arg": arg},
+                    ))
                     messages.append({
                         "role": "tool",
                         "tool_call_id": call.id,
@@ -145,6 +154,11 @@ class SubagentRunner:
 
         except Exception as exc:
             logger.error("Subagent %d error: %s", n, exc, exc_info=True)
+            bus.emit(Event(
+                event_type=Events.RESEARCH_SUBAGENT_DONE,
+                source="research.subagent",
+                payload={"subagent_n": n, "total": total, "citation_count": 0},
+            ))
             return SubagentResult(
                 trajectory_id=trajectory_id,
                 objective=objective,
@@ -152,13 +166,38 @@ class SubagentRunner:
                 rounds_used=rounds,
             )
 
-        findings = _extract_xml("findings", final_content) or final_content[:600]
+        # If we hit max rounds without a clean stop, force a final summarise call
+        if rounds >= _MAX_ROUNDS and not re.search(r"<findings>", final_content, re.IGNORECASE):
+            summarise_msgs = messages + [{"role": "user", "content": (
+                "You have reached your tool call limit. "
+                "Summarise everything you found right now:\n"
+                "<findings>evidence-dense summary</findings>\n"
+                "<citations>one URL per line</citations>"
+            )}]
+            try:
+                forced = self._drivers.llm.complete(
+                    messages=summarise_msgs,
+                    tier=ModelTier.HAIKU,
+                    temperature=0.0,
+                )
+                if forced:
+                    final_content = forced
+            except Exception as exc:
+                logger.debug("Forced summarise call failed: %s", exc)
+
+        findings = _extract_xml("findings", final_content) or final_content
         citations_raw = _extract_xml("citations", final_content)
         citations = [
             ln.strip()
             for ln in citations_raw.splitlines()
             if ln.strip().startswith("http")
         ]
+
+        bus.emit(Event(
+            event_type=Events.RESEARCH_SUBAGENT_DONE,
+            source="research.subagent",
+            payload={"subagent_n": n, "total": total, "citation_count": len(citations)},
+        ))
 
         return SubagentResult(
             trajectory_id=trajectory_id,

@@ -52,6 +52,11 @@ class Events:
     SUDO_REQUEST        = "kernel.sudo.request"     # emitted when agent needs elevated permission
     SUDO_RESULT         = "kernel.sudo.result"      # emitted with allow/deny outcome
     AGENT_TOOL_CALL     = "kernel.agent.tool_call"  # emitted per tool invocation in AgentLoop
+    # Research pipeline events (emitted by macroa.research)
+    RESEARCH_PHASE_START    = "research.phase.start"     # phase number, name, query
+    RESEARCH_SUBAGENT_START = "research.subagent.start"  # n, total, objective
+    RESEARCH_TOOL_CALL      = "research.tool.call"       # n, total, tool, arg
+    RESEARCH_SUBAGENT_DONE  = "research.subagent.done"   # n, total, citation_count
 
 
 @dataclass
