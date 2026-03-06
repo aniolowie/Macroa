@@ -8,8 +8,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from macroa.kernel.router import Router, _extract_json
-from macroa.stdlib.schema import Context, ModelTier
-
+from macroa.stdlib.schema import Context
 
 # ------------------------------------------------------------------ _extract_json
 
