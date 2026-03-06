@@ -227,9 +227,24 @@ def test_audit_stats(tmp_path):
     assert stats["total_runs"] == 4
     assert stats["failures"] == 1
     assert stats["plan_calls"] == 1
+    # sessions uses COUNT(DISTINCT session_id) — all four entries share sess-1
+    assert stats["sessions"] == 1
     skill_names = [s["skill"] for s in stats["by_skill"]]
     assert "chat_skill" in skill_names
     assert "shell_skill" in skill_names
+
+
+def test_audit_stats_session_count_is_exact(tmp_path):
+    """sessions count must reflect the true distinct count, not a sampled subset."""
+    log = AuditLog(db_path=tmp_path / "audit.db")
+    # Insert entries across 3 distinct sessions
+    for i in range(3):
+        for _ in range(5):  # 5 turns each = 15 total entries
+            log.record(_entry(session_id=f"sess-{i}"))
+
+    stats = log.stats()
+    assert stats["total_runs"] == 15
+    assert stats["sessions"] == 3
 
 
 def test_audit_input_capped_at_1000_chars(tmp_path):

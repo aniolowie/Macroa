@@ -121,11 +121,15 @@ class AuditLog:
             plan_calls = conn.execute(
                 "SELECT COUNT(*) FROM audit_log WHERE plan_steps > 0"
             ).fetchone()[0]
+            sessions = conn.execute(
+                "SELECT COUNT(DISTINCT session_id) FROM audit_log"
+            ).fetchone()[0]
 
         return {
             "total_runs": total,
             "failures": failures,
             "plan_calls": plan_calls,
+            "sessions": sessions,
             "by_skill": [{"skill": r[0], "count": r[1], "avg_ms": round(r[2])} for r in by_skill],
             "by_tier": [{"tier": r[0], "count": r[1]} for r in by_tier],
         }

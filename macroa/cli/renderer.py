@@ -204,14 +204,11 @@ def _get_audit_summary() -> str:
     try:
         from macroa.config.settings import get_settings
         from macroa.kernel.audit import AuditLog
-        log = AuditLog(db_path=get_settings().audit_db_path)
-        stats = log.stats()
+        stats = AuditLog(db_path=get_settings().audit_db_path).stats()
         total = stats.get("total_runs", 0)
         if total == 0:
             return "No prior activity — let's get started"
-        sessions_count = len(set(
-            e.session_id for e in log.recent(500)
-        ))
+        sessions_count = stats.get("sessions", 0)
         failures = stats.get("failures", 0)
         parts = [f"{total} turn{'s' if total != 1 else ''}"]
         if sessions_count > 1:
