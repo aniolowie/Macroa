@@ -5,9 +5,7 @@ from __future__ import annotations
 import html as _html_mod
 import logging
 import re
-import urllib.parse
 from collections.abc import Callable
-from html.parser import HTMLParser as _HTMLParser
 from pathlib import Path
 
 from macroa.kernel.sudo import CommandLevel, classify
@@ -245,140 +243,29 @@ def _recall(query: str, drivers: DriverBundle) -> str:
     return "\n".join(f"- {r['key']}: {r['value']}" for r in results)
 
 
-class _DDGLiteParser(_HTMLParser):
-    """Parse DuckDuckGo Lite HTML into a list of {url, title, snippet} dicts."""
+def _web_search(query: str, drivers: DriverBundle) -> str:  # noqa: ARG001
+    try:
+        from ddgs import DDGS
+    except ImportError:
+        return "[web_search error: ddgs not installed — run: pip install ddgs]"
 
-    def __init__(self) -> None:
-        super().__init__()
-        self.results: list[dict] = []
-        self._in_title_td = False
-        self._in_snippet_td = False
-        self._in_result_link = False
-        self._pending_url: str | None = None
-        self._pending_title: str = ""
-        self._cur_snippet: str = ""
+    try:
+        with DDGS() as ddgs:
+            hits = list(ddgs.text(query, max_results=8))
+    except Exception as exc:
+        logger.warning("web_search failed: %s", exc)
+        return f"[web_search error: {exc}]"
 
-    def handle_starttag(self, tag: str, attrs: list) -> None:
-        d = dict(attrs)
-        if tag == "td":
-            cls = d.get("class", "")
-            if "result-title" in cls:
-                self._in_title_td = True
-                self._pending_url = None
-                self._pending_title = ""
-            elif "result-snippet" in cls:
-                self._in_snippet_td = True
-                self._cur_snippet = ""
-        elif tag == "a" and self._in_title_td:
-            href = d.get("href", "")
-            if href.startswith("//"):
-                href = "https:" + href
-            if href.startswith("http") and "duckduckgo" not in href:
-                self._pending_url = href
-                self._in_result_link = True
-
-    def handle_data(self, data: str) -> None:
-        if self._in_result_link:
-            self._pending_title += data
-        elif self._in_snippet_td:
-            self._cur_snippet += data
-
-    def handle_endtag(self, tag: str) -> None:
-        if tag == "a":
-            self._in_result_link = False
-        elif tag == "td":
-            if self._in_title_td:
-                self._in_title_td = False
-            elif self._in_snippet_td:
-                self._in_snippet_td = False
-                if self._pending_url and self._pending_title.strip():
-                    self.results.append({
-                        "url": self._pending_url,
-                        "title": self._pending_title.strip(),
-                        "snippet": " ".join(self._cur_snippet.split()),
-                    })
-                    self._pending_url = None
-
-
-def _html_clean(raw: str) -> str:
-    text = re.sub(r"<[^>]+>", "", raw)
-    return " ".join(_html_mod.unescape(text).split())
-
-
-_DDG_HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (X11; Linux x86_64; rv:126.0) Gecko/20100101 Firefox/126.0"
-    ),
-    "Accept": "text/html,application/xhtml+xml",
-    "Accept-Language": "en-US,en;q=0.9",
-}
-
-
-def _web_search(query: str, drivers: DriverBundle) -> str:
-    encoded = urllib.parse.quote_plus(query)
-
-    # Primary: DuckDuckGo Lite (simpler, more stable HTML)
-    resp = drivers.network.get(
-        f"https://lite.duckduckgo.com/lite/?q={encoded}",
-        headers=_DDG_HEADERS,
-        timeout=15,
-    )
-    if resp.success:
-        parser = _DDGLiteParser()
-        try:
-            parser.feed(resp.body)
-        except Exception:
-            pass
-        if parser.results:
-            lines = [f"Web search results for: {query}\n"]
-            for i, r in enumerate(parser.results[:8]):
-                lines.append(f"{i + 1}. {r['title']}")
-                lines.append(f"   URL: {r['url']}")
-                if r["snippet"]:
-                    lines.append(f"   {r['snippet']}")
-                lines.append("")
-            return "\n".join(lines)
-
-    # Fallback: DDG HTML endpoint with regex extraction
-    resp2 = drivers.network.get(
-        f"https://html.duckduckgo.com/html/?q={encoded}",
-        headers=_DDG_HEADERS,
-        timeout=15,
-    )
-    if not resp2.success:
-        err = resp2.error or (resp.error if not resp.success else "no results")
-        return f"[web_search error: {err}]"
-
-    body = resp2.body
-    # Try class-based pattern first
-    link_pat = re.compile(
-        r'<a[^>]+class=["\'][^"\']*result[^"\']*["\'][^>]+href=["\']([^"\']+)["\'][^>]*>(.*?)</a>',
-        re.DOTALL | re.IGNORECASE,
-    )
-    links = [
-        (url, _html_clean(title))
-        for url, title in link_pat.findall(body)
-        if url.startswith("http") and "duckduckgo" not in url and len(_html_clean(title)) > 4
-    ]
-    # Last resort: any external http link
-    if not links:
-        all_links = re.findall(
-            r'<a[^>]+href=["\'](https?://[^"\']+)["\'][^>]*>(.*?)</a>',
-            body, re.DOTALL | re.IGNORECASE,
-        )
-        links = [
-            (url, _html_clean(t))
-            for url, t in all_links
-            if "duckduckgo" not in url and "duck.co" not in url and len(_html_clean(t)) > 8
-        ]
-
-    if not links:
+    if not hits:
         return f"[No search results found for: {query!r}]"
 
     lines = [f"Web search results for: {query}\n"]
-    for i, (href, title) in enumerate(links[:8]):
-        lines.append(f"{i + 1}. {title}")
-        lines.append(f"   URL: {href}")
+    for i, r in enumerate(hits):
+        lines.append(f"{i + 1}. {r.get('title', '(no title)')}")
+        lines.append(f"   URL: {r.get('href', '')}")
+        body = r.get("body", "")
+        if body:
+            lines.append(f"   {body[:200]}")
         lines.append("")
     return "\n".join(lines)
 

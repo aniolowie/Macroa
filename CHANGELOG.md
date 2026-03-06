@@ -6,6 +6,14 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.2.9] — 2026-03-06
+
+### Fixed
+- **Web search backend** — replaced broken DuckDuckGo HTML scraper (blocked server-side) with the `ddgs` library, which uses DDG's actual API; search now returns real results
+- **`ddgs>=9.0`** added as a core dependency
+
+---
+
 ## [0.2.8] — 2026-03-06
 
 ### Added
