@@ -1,5 +1,11 @@
 # Macroa
 
+[![CI](https://github.com/aniolowie/Macroa/actions/workflows/ci.yml/badge.svg)](https://github.com/aniolowie/Macroa/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/aniolowie/Macroa/graph/badge.svg)](https://codecov.io/gh/aniolowie/Macroa)
+[![PyPI](https://img.shields.io/pypi/v/macroa)](https://pypi.org/project/macroa/)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+
 Your personal AI operating system. It runs on your machine, remembers everything you tell it, schedules tasks, routes to the right AI model automatically, and exposes a full HTTP API — all from a single command.
 
 **Core design rule:** deterministic operations never call an LLM. AI is reserved for ambiguity, reasoning, and generation — keeping costs low and behavior predictable.

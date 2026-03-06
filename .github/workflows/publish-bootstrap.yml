@@ -1,0 +1,34 @@
+name: Publish Bootstrap (run once)
+
+# One-time workflow to create the project on PyPI using an API token.
+# After this runs successfully:
+#   1. Go to pypi.org → macroa → Settings → Publishing → Add trusted publisher
+#      (GitHub repo: aniolowie/Macroa, workflow: release.yml, environment: pypi)
+#   2. Delete the PYPI_API_TOKEN secret from GitHub repo settings
+#   3. This workflow is no longer needed — all future releases use release.yml
+
+on:
+  workflow_dispatch:
+
+jobs:
+  publish:
+    name: Initial PyPI publish
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build tools
+        run: pip install build twine
+
+      - name: Build
+        run: python -m build
+
+      - name: Upload to PyPI
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        run: twine upload dist/*
