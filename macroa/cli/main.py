@@ -227,6 +227,56 @@ def _execute(raw: str, session_id: str, debug: bool) -> None:
 
 
 @cli.command()
+@click.argument("source")
+@click.option("--force", is_flag=True, default=False, help="Overwrite existing tool.")
+def install(source: str, force: bool) -> None:
+    """Install a tool from a local path or git URL."""
+    from macroa.tools.installer import install as do_install, InstallError
+    from macroa.config.settings import get_settings
+    try:
+        dest = do_install(source, get_settings().tools_dir, force=force)
+        render_info(f"Tool installed at [bold]{dest}[/bold]. Restart Macroa to load it.")
+    except InstallError as exc:
+        render_error(str(exc))
+        sys.exit(1)
+
+
+@cli.command()
+@click.argument("name")
+def uninstall(name: str) -> None:
+    """Uninstall a tool by name."""
+    from macroa.tools.installer import uninstall as do_uninstall
+    from macroa.config.settings import get_settings
+    if do_uninstall(name, get_settings().tools_dir):
+        render_info(f"Tool '{name}' uninstalled.")
+    else:
+        render_error(f"Tool '{name}' not found.")
+
+
+@cli.group()
+def tools() -> None:
+    """Manage installed tools."""
+
+
+@tools.command("list")
+def tools_list() -> None:
+    """List installed user tools."""
+    from macroa.tools.installer import list_installed
+    from macroa.config.settings import get_settings
+    installed = list_installed(get_settings().tools_dir)
+    if not installed:
+        render_info("No user tools installed. Use: macroa install <path|url>")
+        return
+    table = Table(title="Installed Tools", show_lines=False)
+    table.add_column("Name", style="bold cyan")
+    table.add_column("Description")
+    table.add_column("Path", style="dim")
+    for t in installed:
+        table.add_row(t["name"], t["description"] or "—", t["path"])
+    console.print(table)
+
+
+@cli.command()
 @click.option("--host", default="127.0.0.1", show_default=True, help="Bind address.")
 @click.option("--port", default=8000, show_default=True, help="Port to listen on.")
 @click.option("--reload", is_flag=True, default=False, help="Auto-reload on code change (dev).")
