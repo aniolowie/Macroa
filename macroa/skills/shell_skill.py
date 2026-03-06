@@ -28,9 +28,8 @@ def run(intent: Intent, context: Context, drivers: DriverBundle) -> SkillResult:
     command = intent.parameters.get("command", "").strip()
     if not command:
         return SkillResult(
-            output="",
-            success=False,
-            error="No command provided to shell_skill",
+            output="What command would you like me to run? (e.g. ! ls -la  or  ! df -h)",
+            success=True,
             turn_id=intent.turn_id,
             model_tier=intent.model_tier,
         )

@@ -6,6 +6,33 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.2.7] — 2026-03-06
+
+### Fixed
+- **`agent_skill` registry warning** — stub `run()` added so skill registry loads the module without "run() is missing" warning; kernel still dispatches agent turns directly via `AgentLoop`
+- **Tool capabilities in system prompt** — `_CAPABILITIES_SECTION` always appended to post-onboarding system prompt so Hammond describes actual Macroa tools instead of generic LLM capabilities; workspace path `~/.macroa/` included
+- **Shell skill UX** — missing command now returns a helpful prompt instead of a bare error
+
+---
+
+## [0.2.5] — 2026-03-06
+
+### Added
+- **Agent skill** (`macroa/kernel/agent.py`, `macroa/skills/agent_skill.py`) — agentic tool-calling loop powered by OpenAI function calling (no new deps). Tools: `write_file`, `read_file`, `run_command`, `remember`, `recall`. Runs until the LLM stops invoking tools or hits a 10-round safety cap.
+- **sudo permission tier** (`macroa/kernel/sudo.py`) — every `run_command` call is classified SAFE / ELEVATED / BLOCKED before execution. ELEVATED commands pause the agent and prompt the user in the REPL with a 30 s SIGALRM timeout; auto-deny on timeout. Approved pattern types persist for the session (e.g. approving `rm` once covers all `rm` calls that session). Blocked patterns (disk wipe, fork bomb, remote code execution) are rejected unconditionally.
+- **First-boot agent mode** — kernel detects missing `~/.macroa/IDENTITY.md` and overrides every turn to `agent_skill`, giving Hammond tools to write identity files directly during onboarding.
+- **`ROUTE_DECISION`, `SUDO_REQUEST`, `SUDO_RESULT`, `AGENT_TOOL_CALL`** event constants added to `Events`.
+
+### Improved (router)
+- **Keyword shortcut layer** — before calling the LLM, check all skill triggers; if exactly one non-chat skill matches unambiguously, route there at confidence 0.95 with zero API cost.
+- **HAIKU retry on low confidence** — if NANO returns confidence < 0.5 on a non-chat result, automatically retry with HAIKU and take the higher-confidence answer.
+- **Few-shot examples** in the routing system prompt — 5 inline input→JSON examples improve JSON compliance and accuracy.
+- **Parameter completeness check** — logs a warning when the LLM omits required parameters (e.g. `path` for `file_skill`), making gaps visible without crashing.
+- **Context continuity hint** — prompt explicitly instructs the router to prefer skill continuity when the user is mid-task.
+- **`ROUTE_DECISION` event** emitted after every routing decision for dashboard/audit visibility.
+
+---
+
 ## [0.2.4] — 2026-03-06
 
 ### Fixed

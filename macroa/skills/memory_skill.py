@@ -20,7 +20,7 @@ MANIFEST = SkillManifest(
         "key, value (for set), query (for search)."
     ),
     triggers=[
-        "remember", "recall", "save", "store", "forget", "what is my", "what's my",
+        "remember", "recall", "save", "store", "forget",
         "memory", "note that", "keep in mind",
     ],
     model_tier=None,

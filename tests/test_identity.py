@@ -53,7 +53,9 @@ def test_empty_identity_file_returns_fallback(tmp_path: Path):
     (tmp_path / "IDENTITY.md").write_text("", encoding="utf-8")
     with patch("macroa.kernel.identity._MACROA_DIR", tmp_path):
         result = build_system_prompt()
-    assert result == _FALLBACK
+    # Fallback text is present; capabilities section is always appended
+    assert _FALLBACK in result
+    assert "Macroa Capabilities" in result
 
 
 # ------------------------------------------------------------------ chat_skill memory injection

@@ -40,14 +40,18 @@ HandlerFn = Callable[["Event"], None]
 
 class Events:
     """Namespace of built-in event type constants."""
-    KERNEL_RUN_START   = "kernel.run.start"
+    KERNEL_RUN_START    = "kernel.run.start"
     KERNEL_RUN_COMPLETE = "kernel.run.complete"
-    PLAN_CREATED       = "kernel.plan.created"
-    SKILL_DISPATCHED   = "kernel.skill.dispatched"
-    ESCALATION         = "kernel.escalation"
-    HEARTBEAT_TICK     = "heartbeat.tick"
-    MEMORY_SET         = "memory.set"
-    TOOL_LOADED        = "tool.loaded"
+    PLAN_CREATED        = "kernel.plan.created"
+    SKILL_DISPATCHED    = "kernel.skill.dispatched"
+    ESCALATION          = "kernel.escalation"
+    HEARTBEAT_TICK      = "heartbeat.tick"
+    MEMORY_SET          = "memory.set"
+    TOOL_LOADED         = "tool.loaded"
+    ROUTE_DECISION      = "kernel.route.decision"   # emitted after every routing decision
+    SUDO_REQUEST        = "kernel.sudo.request"     # emitted when agent needs elevated permission
+    SUDO_RESULT         = "kernel.sudo.result"      # emitted with allow/deny outcome
+    AGENT_TOOL_CALL     = "kernel.agent.tool_call"  # emitted per tool invocation in AgentLoop
 
 
 @dataclass
