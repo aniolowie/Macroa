@@ -196,7 +196,8 @@ def test_heartbeat_calls_persistent_tools():
     tick_count = {"n": 0}
 
     class _PingTool(BaseTool):
-        def execute(self, intent, context, drivers): ...
+        def execute(self, intent, context, drivers):
+            raise NotImplementedError
         def heartbeat(self, drivers):
             tick_count["n"] += 1
 
@@ -226,7 +227,8 @@ def test_heartbeat_no_persistent_tools():
 def test_heartbeat_isolates_tool_exceptions():
     """A heartbeat crash in one tool must not kill the heartbeat thread."""
     class _CrashTool(BaseTool):
-        def execute(self, intent, context, drivers): ...
+        def execute(self, intent, context, drivers):
+            raise NotImplementedError
         def heartbeat(self, drivers):
             raise RuntimeError("heartbeat exploded")
 

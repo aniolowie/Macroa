@@ -142,6 +142,6 @@ def _read_manifest_description(tool_py: Path) -> str:
         m = re.search(r'description\s*=\s*["\']([^"\']+)["\']', text)
         if m:
             return m.group(1)
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("Could not read manifest description from %s: %s", tool_py, exc)
     return ""

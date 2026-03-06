@@ -83,13 +83,15 @@ def test_add_and_list(tmp_path):
 def test_delete(tmp_path):
     s = _sched(tmp_path)
     task = s.add("t", "cmd", "every:60", session_id="s")
-    assert s.delete(task.task_id) is True
+    deleted = s.delete(task.task_id)
+    assert deleted is True
     assert s.list_tasks() == []
 
 
 def test_delete_nonexistent(tmp_path):
     s = _sched(tmp_path)
-    assert s.delete("no-such-id") is False
+    result = s.delete("no-such-id")
+    assert result is False
 
 
 def test_enable_disable(tmp_path):

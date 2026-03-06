@@ -44,14 +44,16 @@ def test_list_sessions(tmp_path):
 def test_delete_session(tmp_path):
     store = _store(tmp_path)
     store.get_or_create("temp")
-    assert store.delete("temp") is True
+    deleted = store.delete("temp")
+    assert deleted is True
     names = [s.name for s in store.list_sessions()]
     assert "temp" not in names
 
 
 def test_delete_nonexistent(tmp_path):
     store = _store(tmp_path)
-    assert store.delete("ghost") is False
+    result = store.delete("ghost")
+    assert result is False
 
 
 def test_get_by_id(tmp_path):
