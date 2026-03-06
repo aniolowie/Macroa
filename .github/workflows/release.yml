@@ -1,0 +1,96 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write      # create GitHub Release
+  id-token: write      # PyPI trusted publishing (OIDC — no API key needed)
+
+jobs:
+  build:
+    name: Build distribution
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install build
+        run: pip install build
+
+      - name: Build sdist and wheel
+        run: python -m build
+
+      - name: Upload dist artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish-pypi:
+    name: Publish to PyPI
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/macroa/
+    steps:
+      - name: Download dist artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        # OIDC trusted publishing — configure at:
+        # https://pypi.org/manage/project/macroa/settings/publishing/
+        # No PYPI_API_TOKEN secret required.
+
+  github-release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # needed to generate changelog from commits
+
+      - name: Download dist artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Extract version
+        id: version
+        run: echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+
+      - name: Generate release notes from CHANGELOG
+        id: notes
+        run: |
+          # Extract the section for this version from CHANGELOG.md
+          TAG="${{ steps.version.outputs.tag }}"
+          VERSION="${TAG#v}"
+          NOTES=$(awk "/^## \[?${VERSION}\]?/{found=1; next} found && /^## /{exit} found{print}" CHANGELOG.md)
+          if [ -z "$NOTES" ]; then
+            NOTES="See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for details."
+          fi
+          echo "notes<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$NOTES" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Macroa ${{ steps.version.outputs.tag }}
+          body: ${{ steps.notes.outputs.notes }}
+          files: dist/*
+          draft: false
+          prerelease: ${{ contains(steps.version.outputs.tag, 'alpha') || contains(steps.version.outputs.tag, 'beta') || contains(steps.version.outputs.tag, 'rc') }}

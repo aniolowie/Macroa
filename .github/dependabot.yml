@@ -1,0 +1,31 @@
+version: 2
+
+updates:
+  # Python dependencies
+  - package-ecosystem: pip
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: UTC
+    open-pull-requests-limit: 5
+    groups:
+      dev-dependencies:
+        patterns: ["pytest*", "ruff", "mypy", "black", "build"]
+      web-dependencies:
+        patterns: ["fastapi", "uvicorn", "httpx"]
+    ignore:
+      # Only auto-update patch versions for openai SDK (breaking changes are common)
+      - dependency-name: "openai"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+
+  # GitHub Actions
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: UTC
+    open-pull-requests-limit: 5
