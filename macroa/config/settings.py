@@ -72,12 +72,19 @@ def get_settings() -> Settings:
     tools_dir = Path(tools_dir_str).expanduser()
     tools_dir.mkdir(parents=True, exist_ok=True)
 
+    def _clean_model(env_key: str, default: str) -> str:
+        """Strip accidental 'openrouter/' prefix that some users paste from docs."""
+        val = os.environ.get(env_key, default)
+        if val.startswith("openrouter/"):
+            val = val[len("openrouter/"):]
+        return val
+
     return Settings(
         openrouter_api_key=api_key,
-        model_nano=os.environ.get("MACROA_MODEL_NANO", "google/gemini-2.5-flash-lite"),
-        model_haiku=os.environ.get("MACROA_MODEL_HAIKU", "anthropic/claude-haiku-4-5"),
-        model_sonnet=os.environ.get("MACROA_MODEL_SONNET", "anthropic/claude-sonnet-4-6"),
-        model_opus=os.environ.get("MACROA_MODEL_OPUS", "anthropic/claude-opus-4-6"),
+        model_nano=_clean_model("MACROA_MODEL_NANO", "google/gemini-2.5-flash-lite"),
+        model_haiku=_clean_model("MACROA_MODEL_HAIKU", "google/gemini-2.5-flash-lite"),
+        model_sonnet=_clean_model("MACROA_MODEL_SONNET", "anthropic/claude-sonnet-4-6"),
+        model_opus=_clean_model("MACROA_MODEL_OPUS", "anthropic/claude-opus-4-6"),
         context_window=int(os.environ.get("MACROA_CONTEXT_WINDOW", "20")),
         memory_backend=os.environ.get("MACROA_MEMORY_BACKEND", "sqlite"),
         memory_db_path=Path(
