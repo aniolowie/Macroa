@@ -11,31 +11,42 @@ from macroa.stdlib.schema import DriverBundle, Intent, ModelTier
 # ------------------------------------------------------------------ identity.build_system_prompt
 
 
+def _identity_dir(tmp_path: Path) -> Path:
+    """Create and return a tmp identity subdir, mirroring ~/.macroa/identity/."""
+    d = tmp_path / "identity"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
 def test_bootstrap_no_identity(tmp_path: Path):
-    with patch("macroa.kernel.identity._MACROA_DIR", tmp_path):
+    idir = _identity_dir(tmp_path)
+    with patch("macroa.kernel.identity._IDENTITY_DIR", idir):
         result = build_system_prompt()
     # No IDENTITY.md → should return bootstrap content
     assert "Who am I" in result or "woke up" in result
 
 
 def test_bootstrap_writes_file(tmp_path: Path):
-    with patch("macroa.kernel.identity._MACROA_DIR", tmp_path):
+    idir = _identity_dir(tmp_path)
+    with patch("macroa.kernel.identity._IDENTITY_DIR", idir):
         build_system_prompt()
-    assert (tmp_path / "BOOTSTRAP.md").exists()
+    assert (idir / "BOOTSTRAP.md").exists()
 
 
 def test_bootstrap_custom_file(tmp_path: Path):
-    (tmp_path / "BOOTSTRAP.md").write_text("Custom bootstrap content.", encoding="utf-8")
-    with patch("macroa.kernel.identity._MACROA_DIR", tmp_path):
+    idir = _identity_dir(tmp_path)
+    (idir / "BOOTSTRAP.md").write_text("Custom bootstrap content.", encoding="utf-8")
+    with patch("macroa.kernel.identity._IDENTITY_DIR", idir):
         result = build_system_prompt()
     assert result == "Custom bootstrap content."
 
 
 def test_identity_files_loaded(tmp_path: Path):
-    (tmp_path / "IDENTITY.md").write_text("Name: Pixel\nEmoji: 🤖", encoding="utf-8")
-    (tmp_path / "USER.md").write_text("Name: Alice\nTimezone: UTC", encoding="utf-8")
-    (tmp_path / "SOUL.md").write_text("Be warm and curious.", encoding="utf-8")
-    with patch("macroa.kernel.identity._MACROA_DIR", tmp_path):
+    idir = _identity_dir(tmp_path)
+    (idir / "IDENTITY.md").write_text("Name: Pixel\nEmoji: 🤖", encoding="utf-8")
+    (idir / "USER.md").write_text("Name: Alice\nTimezone: UTC", encoding="utf-8")
+    (idir / "SOUL.md").write_text("Be warm and curious.", encoding="utf-8")
+    with patch("macroa.kernel.identity._IDENTITY_DIR", idir):
         result = build_system_prompt()
     assert "Pixel" in result
     assert "Alice" in result
@@ -43,15 +54,17 @@ def test_identity_files_loaded(tmp_path: Path):
 
 
 def test_identity_only_required_file(tmp_path: Path):
-    (tmp_path / "IDENTITY.md").write_text("Name: Macroa", encoding="utf-8")
-    with patch("macroa.kernel.identity._MACROA_DIR", tmp_path):
+    idir = _identity_dir(tmp_path)
+    (idir / "IDENTITY.md").write_text("Name: TestAgent", encoding="utf-8")
+    with patch("macroa.kernel.identity._IDENTITY_DIR", idir):
         result = build_system_prompt()
-    assert "Macroa" in result
+    assert "TestAgent" in result
 
 
 def test_empty_identity_file_returns_fallback(tmp_path: Path):
-    (tmp_path / "IDENTITY.md").write_text("", encoding="utf-8")
-    with patch("macroa.kernel.identity._MACROA_DIR", tmp_path):
+    idir = _identity_dir(tmp_path)
+    (idir / "IDENTITY.md").write_text("", encoding="utf-8")
+    with patch("macroa.kernel.identity._IDENTITY_DIR", idir):
         result = build_system_prompt()
     # Fallback text is present; capabilities section is always appended
     assert _FALLBACK in result

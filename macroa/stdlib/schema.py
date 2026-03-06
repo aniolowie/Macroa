@@ -82,3 +82,4 @@ class DriverBundle:
     fs: FSDriver
     memory: MemoryDriver
     network: NetworkDriver
+    vfs: Any = None  # VFS instance — None in unit tests, always set in production

@@ -91,7 +91,7 @@ def get_settings() -> Settings:
         context_window=int(os.environ.get("MACROA_CONTEXT_WINDOW", "20")),
         memory_backend=os.environ.get("MACROA_MEMORY_BACKEND", "sqlite"),
         memory_db_path=Path(
-            os.environ.get("MACROA_MEMORY_DB_PATH", str(macroa_dir / "memory.db"))
+            os.environ.get("MACROA_MEMORY_DB_PATH", str(macroa_dir / "memory" / "memory.db"))
         ).expanduser(),
         http_referer=os.environ.get("MACROA_HTTP_REFERER", "https://github.com/macroa/macroa"),
         app_title=os.environ.get("MACROA_APP_TITLE", "Macroa"),
@@ -100,13 +100,13 @@ def get_settings() -> Settings:
         builtin_tools_dir=builtin_tools_dir,
         heartbeat_interval=int(os.environ.get("MACROA_HEARTBEAT_INTERVAL", "60")),
         audit_db_path=Path(
-            os.environ.get("MACROA_AUDIT_DB_PATH", str(macroa_dir / "audit.db"))
+            os.environ.get("MACROA_AUDIT_DB_PATH", str(macroa_dir / "logs" / "audit.db"))
         ).expanduser(),
         sessions_db_path=Path(
-            os.environ.get("MACROA_SESSIONS_DB_PATH", str(macroa_dir / "sessions.db"))
+            os.environ.get("MACROA_SESSIONS_DB_PATH", str(macroa_dir / "sessions" / "sessions.db"))
         ).expanduser(),
         scheduler_db_path=Path(
-            os.environ.get("MACROA_SCHEDULER_DB_PATH", str(macroa_dir / "scheduler.db"))
+            os.environ.get("MACROA_SCHEDULER_DB_PATH", str(macroa_dir / "logs" / "scheduler.db"))
         ).expanduser(),
         scheduler_poll=int(os.environ.get("MACROA_SCHEDULER_POLL", "10")),
         network_timeout=int(os.environ.get("MACROA_NETWORK_TIMEOUT", "30")),

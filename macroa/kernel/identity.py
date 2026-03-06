@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 _MACROA_DIR = Path.home() / ".macroa"
+_IDENTITY_DIR = _MACROA_DIR / "identity"
 
 _DEFAULT_BOOTSTRAP = """\
 You just woke up. Time to figure out who you are.
@@ -42,9 +43,9 @@ When asked what you can do, describe these specific capabilities — not generic
 ## After You Know Who You Are
 
 Once names and vibe are established, write the identity files yourself using write_file:
-- ~/.macroa/IDENTITY.md — your name, nature, vibe, emoji
-- ~/.macroa/USER.md — their name, how to address them, timezone, notes
-- ~/.macroa/SOUL.md — values, behaviour preferences, any limits
+- ~/.macroa/identity/IDENTITY.md — your name, nature, vibe, emoji
+- ~/.macroa/identity/USER.md — their name, how to address them, timezone, notes
+- ~/.macroa/identity/SOUL.md — values, behaviour preferences, any limits
 
 Once IDENTITY.md exists, you will load it automatically on every startup and skip \
 this onboarding. This is important — without the file you restart blank every time.
@@ -70,7 +71,7 @@ You are running on Macroa, a personal AI OS. You have these specific tools:
 - **file_skill** — read/write/list files directly
 - **shell_skill** — run shell commands directly (prefix with ! or $)
 
-Your workspace and config live in ~/.macroa/ — that's where your identity files are too.
+Your workspace lives at ~/.macroa/. Identity files are in ~/.macroa/identity/.
 When asked what you can do, describe these specific capabilities. Never describe yourself \
 as a generic LLM."""
 
@@ -88,13 +89,13 @@ def build_system_prompt() -> str:
     First boot (no IDENTITY.md): return BOOTSTRAP.md content (writes default if missing).
     Subsequent boots: combine IDENTITY.md + USER.md + SOUL.md.
     """
-    identity_path = _MACROA_DIR / "IDENTITY.md"
+    identity_path = _IDENTITY_DIR / "IDENTITY.md"
 
     if not identity_path.exists():
-        bootstrap_path = _MACROA_DIR / "BOOTSTRAP.md"
+        bootstrap_path = _IDENTITY_DIR / "BOOTSTRAP.md"
         if not bootstrap_path.exists():
             try:
-                _MACROA_DIR.mkdir(parents=True, exist_ok=True)
+                _IDENTITY_DIR.mkdir(parents=True, exist_ok=True)
                 bootstrap_path.write_text(_DEFAULT_BOOTSTRAP, encoding="utf-8")
             except OSError:
                 pass
@@ -107,11 +108,11 @@ def build_system_prompt() -> str:
     if identity:
         parts.append(f"# Your Identity\n{identity}")
 
-    user = _read(_MACROA_DIR / "USER.md")
+    user = _read(_IDENTITY_DIR / "USER.md")
     if user:
         parts.append(f"# About the User\n{user}")
 
-    soul = _read(_MACROA_DIR / "SOUL.md")
+    soul = _read(_IDENTITY_DIR / "SOUL.md")
     if soul:
         parts.append(f"# Your Soul\n{soul}")
 

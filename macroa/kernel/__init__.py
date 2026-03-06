@@ -27,6 +27,10 @@ from macroa.kernel.sessions import SessionStore
 from macroa.stdlib.schema import DriverBundle, Intent, SkillResult
 from macroa.tools.heartbeat import HeartbeatManager
 from macroa.tools.registry import ToolRegistry
+from macroa.vfs import VFS
+from macroa.vfs.layout import MACROA_DIR, bootstrap_layout
+from macroa.vfs.local import LocalBackend
+from macroa.vfs.memory import MemoryBackend
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +53,7 @@ def _get_sudo_approved(session_id: str) -> set[str]:
 
 
 def _is_first_boot() -> bool:
-    return not (Path.home() / ".macroa" / "IDENTITY.md").exists()
+    return not (MACROA_DIR / "identity" / "IDENTITY.md").exists()
 
 # Module-level singletons (lazy-initialized)
 _drivers: DriverBundle | None = None
@@ -64,7 +68,27 @@ _scheduler: Scheduler | None = None
 def _get_drivers() -> DriverBundle:
     global _drivers
     if _drivers is None:
+        # Ensure ~/.macroa/ directory tree exists and migrate any legacy flat files
+        bootstrap_layout()
+
         settings = get_settings()
+
+        memory = MemoryDriver(
+            backend=settings.memory_backend,
+            db_path=settings.memory_db_path,
+        )
+
+        # Build the VFS — mount order doesn't matter; longest prefix always wins
+        vfs = VFS()
+        vfs.mount("/mem",       MemoryBackend(memory))
+        vfs.mount("/identity",  LocalBackend(MACROA_DIR / "identity",         "identity"))
+        vfs.mount("/workspace", LocalBackend(MACROA_DIR / "workspace",        "workspace"))
+        vfs.mount("/research",  LocalBackend(MACROA_DIR / "research",         "research"))
+        vfs.mount("/tools",     LocalBackend(MACROA_DIR / "tools",            "tools"))
+        vfs.mount("/logs",      LocalBackend(MACROA_DIR / "logs",             "logs"))
+        vfs.mount("/sessions",  LocalBackend(MACROA_DIR / "sessions",         "sessions"))
+        vfs.mount("/fs",        LocalBackend(Path("/"),                        "fs"))
+
         _drivers = DriverBundle(
             llm=LLMDriver(
                 api_key=settings.openrouter_api_key,
@@ -74,11 +98,9 @@ def _get_drivers() -> DriverBundle:
             ),
             shell=ShellDriver(),
             fs=FSDriver(),
-            memory=MemoryDriver(
-                backend=settings.memory_backend,
-                db_path=settings.memory_db_path,
-            ),
+            memory=memory,
             network=NetworkDriver(timeout=settings.network_timeout),
+            vfs=vfs,
         )
     return _drivers
 
