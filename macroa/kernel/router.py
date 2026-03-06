@@ -97,6 +97,10 @@ Examples:
   Input: "show disk usage"
   → {{"skill_name":"shell_skill","parameters":{{"command":"df -h"}},"confidence":0.87,\
 "reasoning":"system info best answered via shell"}}
+
+  Input: "research top laners in League of Legends and compile a report"
+  → {{"skill_name":"research_skill","parameters":{{"query":"top laners League of Legends competitive"}},"confidence":0.95,\
+"reasoning":"multi-source research task requiring web investigation and synthesis"}}
 """
 
 
@@ -240,11 +244,16 @@ class Router:
 
     def _keyword_route(self, raw_input: str) -> str | None:
         """Return a skill name if exactly one non-chat skill has an unambiguous
-        trigger match. Returns None to let the LLM decide."""
+        trigger match. Returns None to let the LLM decide.
+
+        Skills that require parameter extraction are excluded so the LLM can
+        extract key/value/action instead of defaulting to empty parameters.
+        """
+        _NO_KEYWORD_ROUTE = {"chat_skill", "memory_skill"}
         lower = raw_input.lower()
         matched: set[str] = set()
         for manifest in self._registry.all_manifests():
-            if manifest.name == "chat_skill":
+            if manifest.name in _NO_KEYWORD_ROUTE:
                 continue
             for trigger in manifest.triggers:
                 if (

@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import html as _html_mod
 import logging
+import re
+import urllib.parse
 from collections.abc import Callable
 from pathlib import Path
 
@@ -110,6 +113,49 @@ TOOL_SCHEMAS: list[dict] = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "web_search",
+            "description": (
+                "Search the web using DuckDuckGo and return a list of results with titles, "
+                "URLs, and snippets. Use this to research topics, find recent information, "
+                "discover sources to cite, or look up anything not in memory. "
+                "Follow up with fetch_url to read the full content of promising pages."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Search query (be specific for best results)",
+                    },
+                },
+                "required": ["query"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "fetch_url",
+            "description": (
+                "Fetch the text content of a web page (HTML stripped). "
+                "Use after web_search to read full articles, documentation, or sources. "
+                "Content is truncated at 8000 characters."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "url": {
+                        "type": "string",
+                        "description": "Full URL to fetch (must start with http:// or https://)",
+                    },
+                },
+                "required": ["url"],
+            },
+        },
+    },
 ]
 
 
@@ -134,6 +180,10 @@ def execute_tool(
             return _remember(args["key"], args["value"], drivers)
         if name == "recall":
             return _recall(args["query"], drivers)
+        if name == "web_search":
+            return _web_search(args["query"], drivers)
+        if name == "fetch_url":
+            return _fetch_url(args["url"], drivers)
         return f"[unknown tool: {name!r}]"
     except KeyError as exc:
         return f"[tool {name!r} missing required argument: {exc}]"
@@ -192,3 +242,68 @@ def _recall(query: str, drivers: DriverBundle) -> str:
     if not results:
         return "No memories found."
     return "\n".join(f"- {r['key']}: {r['value']}" for r in results)
+
+
+def _web_search(query: str, drivers: DriverBundle) -> str:
+    encoded = urllib.parse.quote_plus(query)
+    url = f"https://html.duckduckgo.com/html/?q={encoded}"
+    resp = drivers.network.get(
+        url,
+        headers={"User-Agent": "Mozilla/5.0 (compatible; Macroa/1.0)"},
+        timeout=15,
+    )
+    if not resp.success:
+        return f"[web_search error: {resp.error}]"
+
+    body = resp.body
+    link_pat = re.compile(
+        r'<a[^>]+class=["\']result__a["\'][^>]+href=["\']([^"\']+)["\'][^>]*>(.*?)</a>',
+        re.DOTALL | re.IGNORECASE,
+    )
+    snippet_pat = re.compile(
+        r'class=["\']result__snippet["\'][^>]*>(.*?)</(?:a|td|span)>',
+        re.DOTALL | re.IGNORECASE,
+    )
+
+    links = link_pat.findall(body)
+    snippets_raw = snippet_pat.findall(body)
+
+    if not links:
+        return f"[No search results found for: {query!r}]"
+
+    def _clean(html_text: str) -> str:
+        text = re.sub(r"<[^>]+>", "", html_text)
+        return " ".join(_html_mod.unescape(text).split())
+
+    snippets = [_clean(s) for s in snippets_raw]
+    lines = [f"Web search results for: {query}\n"]
+    for i, (href, title_html) in enumerate(links[:8]):
+        title = _clean(title_html)
+        snippet = snippets[i] if i < len(snippets) else ""
+        lines.append(f"{i + 1}. {title}")
+        lines.append(f"   URL: {href}")
+        if snippet:
+            lines.append(f"   {snippet}")
+        lines.append("")
+    return "\n".join(lines)
+
+
+def _fetch_url(url: str, drivers: DriverBundle) -> str:
+    resp = drivers.network.get(
+        url,
+        headers={"User-Agent": "Mozilla/5.0 (compatible; Macroa/1.0)"},
+        timeout=20,
+    )
+    if not resp.success:
+        return f"[fetch_url error: {resp.error}]"
+
+    body = resp.body
+    body = re.sub(r"<script[^>]*>.*?</script>", " ", body, flags=re.DOTALL | re.IGNORECASE)
+    body = re.sub(r"<style[^>]*>.*?</style>", " ", body, flags=re.DOTALL | re.IGNORECASE)
+    body = re.sub(r"<[^>]+>", " ", body)
+    body = _html_mod.unescape(body)
+    body = re.sub(r"\s+", " ", body).strip()
+
+    if len(body) > 8000:
+        body = body[:8000] + "\n[... page truncated at 8000 chars]"
+    return body
