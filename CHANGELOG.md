@@ -6,6 +6,13 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.2.3] — 2026-03-06
+
+### Fixed
+- Re-release of 0.2.2 content: `v0.2.2` tag had pointed to the wrong commit so PyPI never received the package; bumping to 0.2.3 ensures a clean publish
+
+---
+
 ## [0.2.2] — 2026-03-06
 
 ### Fixed
