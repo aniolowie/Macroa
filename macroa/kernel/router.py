@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import uuid
 
 from macroa.config.skill_registry import SkillRegistry
@@ -38,6 +39,14 @@ Rules:
 - Default to chat_skill if no other skill clearly matches.
 - Never include markdown, code fences, or explanation outside the JSON.
 """
+
+
+def _extract_json(text: str) -> str:
+    """Strip markdown code fences and whitespace from an LLM response."""
+    text = text.strip()
+    text = re.sub(r"^```(?:json)?\s*", "", text)
+    text = re.sub(r"\s*```$", "", text)
+    return text.strip()
 
 
 class Router:
@@ -86,7 +95,7 @@ class Router:
                 expect_json=True,
                 temperature=0.0,
             )
-            parsed = json.loads(raw_json)
+            parsed = json.loads(_extract_json(raw_json))
             skill_name = parsed.get("skill_name", "chat_skill")
             parameters = parsed.get("parameters", {})
             confidence = float(parsed.get("confidence", 0.5))
