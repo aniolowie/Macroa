@@ -41,6 +41,7 @@ class Settings:
     sessions_db_path: Path   # named sessions + persisted context
     scheduler_db_path: Path  # scheduled tasks
     scheduler_poll: int      # seconds between scheduler ticks
+    watchdog_db_path: Path   # watchdog observer registry
     network_timeout: int     # default HTTP timeout in seconds
     user_name: str           # display name set during setup wizard
 
@@ -109,6 +110,9 @@ def get_settings() -> Settings:
             os.environ.get("MACROA_SCHEDULER_DB_PATH", str(macroa_dir / "logs" / "scheduler.db"))
         ).expanduser(),
         scheduler_poll=int(os.environ.get("MACROA_SCHEDULER_POLL", "10")),
+        watchdog_db_path=Path(
+            os.environ.get("MACROA_WATCHDOG_DB_PATH", str(macroa_dir / "logs" / "watchdog.db"))
+        ).expanduser(),
         network_timeout=int(os.environ.get("MACROA_NETWORK_TIMEOUT", "30")),
         user_name=os.environ.get("MACROA_USER_NAME", ""),
     )

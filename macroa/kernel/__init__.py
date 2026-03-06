@@ -24,6 +24,7 @@ from macroa.kernel.planner import Planner
 from macroa.kernel.router import Router
 from macroa.kernel.scheduler import Scheduler
 from macroa.kernel.sessions import SessionStore
+from macroa.kernel.watchdog import WatchdogManager
 from macroa.stdlib.schema import DriverBundle, Intent, SkillResult
 from macroa.tools.heartbeat import HeartbeatManager
 from macroa.tools.registry import ToolRegistry
@@ -63,6 +64,7 @@ _heartbeat: HeartbeatManager | None = None
 _audit: AuditLog | None = None
 _session_store: SessionStore | None = None
 _scheduler: Scheduler | None = None
+_watchdog: WatchdogManager | None = None
 
 
 def _get_drivers() -> DriverBundle:
@@ -161,6 +163,20 @@ def _get_scheduler() -> Scheduler:
         )
         _scheduler.start()
     return _scheduler
+
+
+def _get_watchdog() -> WatchdogManager:
+    global _watchdog
+    if _watchdog is None:
+        settings = get_settings()
+        drivers = _get_drivers()
+        _watchdog = WatchdogManager(
+            db_path=settings.watchdog_db_path,
+            run_fn=run,
+            memory_driver=drivers.memory,
+        )
+        _watchdog.start()
+    return _watchdog
 
 
 def _get_or_create_session(session_id: str) -> ContextManager:
@@ -427,14 +443,53 @@ def schedule_enable(task_id: str, enabled: bool = True) -> bool:
     return _get_scheduler().enable(task_id, enabled)
 
 
+# ── Watchdog API ──────────────────────────────────────────────────────────────
+
+def watch_add(
+    observer_type: str,
+    config: dict,
+    action: str,
+    session_id: str | None = None,
+    poll_interval: int = 30,
+    once: bool = False,
+):
+    """Register and start a new watchdog observer."""
+    sid = session_id or get_session_id()
+    return _get_watchdog().add(
+        observer_type=observer_type,
+        config=config,
+        action=action,
+        session_id=sid,
+        poll_interval=poll_interval,
+        once=once,
+    )
+
+
+def watch_list():
+    """Return all registered observers."""
+    return _get_watchdog().list_observers()
+
+
+def watch_delete(observer_id: str) -> bool:
+    """Stop and remove an observer."""
+    return _get_watchdog().delete(observer_id)
+
+
+def watch_enable(observer_id: str, enabled: bool = True) -> bool:
+    """Enable or disable an observer."""
+    return _get_watchdog().enable(observer_id, enabled)
+
+
 def get_audit_stats() -> dict:
     """Return usage stats from the audit log."""
     return _get_audit().stats()
 
 
 def shutdown() -> None:
-    """Graceful shutdown — stop heartbeat, scheduler, teardown tools, close session store."""
-    global _heartbeat, _tool_registry, _drivers, _session_store, _scheduler
+    """Graceful shutdown — stop watchdog, scheduler, heartbeat, teardown tools."""
+    global _heartbeat, _tool_registry, _drivers, _session_store, _scheduler, _watchdog
+    if _watchdog is not None:
+        _watchdog.stop()
     if _scheduler is not None:
         _scheduler.stop()
     if _heartbeat is not None:
