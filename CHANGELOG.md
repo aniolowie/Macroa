@@ -6,6 +6,15 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.2.7] — 2026-03-06
+
+### Fixed
+- **`agent_skill` registry warning** — stub `run()` added so skill registry loads the module without "run() is missing" warning; kernel still dispatches agent turns directly via `AgentLoop`
+- **Tool capabilities in system prompt** — `_CAPABILITIES_SECTION` always appended to post-onboarding system prompt so Hammond describes actual Macroa tools instead of generic LLM capabilities; workspace path `~/.macroa/` included
+- **Shell skill UX** — missing command now returns a helpful prompt instead of a bare error
+
+---
+
 ## [0.2.5] — 2026-03-06
 
 ### Added
