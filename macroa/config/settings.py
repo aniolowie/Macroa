@@ -9,7 +9,13 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-load_dotenv()
+# Priority (highest to lowest):
+#   1. Shell environment variables — already in os.environ, load_dotenv never touches them
+#   2. Project .env (current directory) — loaded first, wins over wizard defaults
+#   3. ~/.macroa/.env — written by setup wizard, only fills gaps not set above
+# Both calls use override=False: whichever call runs first wins for each variable.
+load_dotenv(override=False)                                           # project .env
+load_dotenv(Path.home() / ".macroa" / ".env", override=False)        # wizard defaults
 
 
 @dataclass(frozen=True)
@@ -33,6 +39,7 @@ class Settings:
     scheduler_db_path: Path  # scheduled tasks
     scheduler_poll: int      # seconds between scheduler ticks
     network_timeout: int     # default HTTP timeout in seconds
+    user_name: str           # display name set during setup wizard
 
     @property
     def model_map(self) -> dict[str, str]:
@@ -93,4 +100,5 @@ def get_settings() -> Settings:
         ).expanduser(),
         scheduler_poll=int(os.environ.get("MACROA_SCHEDULER_POLL", "10")),
         network_timeout=int(os.environ.get("MACROA_NETWORK_TIMEOUT", "30")),
+        user_name=os.environ.get("MACROA_USER_NAME", ""),
     )
