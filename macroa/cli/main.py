@@ -226,5 +226,20 @@ def _execute(raw: str, session_id: str, debug: bool) -> None:
         sys.exit(1)
 
 
+@cli.command()
+@click.option("--host", default="127.0.0.1", show_default=True, help="Bind address.")
+@click.option("--port", default=8000, show_default=True, help="Port to listen on.")
+@click.option("--reload", is_flag=True, default=False, help="Auto-reload on code change (dev).")
+def serve(host: str, port: int, reload: bool) -> None:
+    """Start the Macroa HTTP API server (requires pip install macroa[web])."""
+    try:
+        import uvicorn
+    except ImportError:
+        render_error("uvicorn not installed. Run: pip install macroa[web]")
+        sys.exit(1)
+    render_info(f"Starting Macroa API on http://{host}:{port}")
+    uvicorn.run("macroa.web.app:app", host=host, port=port, reload=reload)
+
+
 if __name__ == "__main__":
     cli()

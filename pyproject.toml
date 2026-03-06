@@ -18,6 +18,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest", "pytest-cov", "ruff", "mypy", "black"]
+web = ["fastapi>=0.110.0", "uvicorn[standard]>=0.29.0"]
 
 [project.scripts]
 macroa = "macroa.cli.main:cli"

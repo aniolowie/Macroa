@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from typing import Any
 
 from openai import OpenAI, APIError
@@ -77,3 +78,37 @@ class LLMDriver:
             raise LLMDriverError(f"OpenRouter API error: {exc}") from exc
         except Exception as exc:
             raise LLMDriverError(f"Unexpected LLM error: {exc}") from exc
+
+    def stream(
+        self,
+        messages: list[dict[str, str]],
+        tier: ModelTier,
+        *,
+        temperature: float = 0.2,
+        max_tokens: int = 2048,
+    ) -> Iterator[str]:
+        """
+        Streaming variant — yields text chunks as they arrive from the API.
+        Raises LLMDriverError on connection failures; individual chunk errors
+        are silently skipped (empty delta).
+        """
+        model_id = self._model_map.get(tier)
+        if not model_id:
+            raise LLMDriverError(f"No model mapped for tier {tier!r}")
+
+        try:
+            with self._client.chat.completions.create(
+                model=model_id,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                stream=True,
+            ) as stream:
+                for chunk in stream:
+                    delta = chunk.choices[0].delta.content if chunk.choices else None
+                    if delta:
+                        yield delta
+        except APIError as exc:
+            raise LLMDriverError(f"OpenRouter stream error: {exc}") from exc
+        except Exception as exc:
+            raise LLMDriverError(f"Unexpected stream error: {exc}") from exc
