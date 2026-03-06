@@ -60,6 +60,9 @@ macroa = "macroa.cli.main:cli"
 where   = ["."]
 include = ["macroa*"]
 
+[tool.setuptools.package-data]
+"macroa" = ["web/static/*"]
+
 # ── ruff ─────────────────────────────────────────────────────────────────────
 [tool.ruff]
 line-length = 100
