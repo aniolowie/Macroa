@@ -16,12 +16,15 @@ from typing import AsyncIterator, Optional
 try:
     from fastapi import FastAPI, HTTPException, Query
     from fastapi.middleware.cors import CORSMiddleware
-    from fastapi.responses import StreamingResponse
+    from fastapi.responses import FileResponse, StreamingResponse
     from pydantic import BaseModel
 except ImportError as exc:  # pragma: no cover
     raise ImportError(
         "Web dependencies not installed. Run: pip install macroa[web]"
     ) from exc
+
+from pathlib import Path as _Path
+_STATIC = _Path(__file__).parent / "static"
 
 import macroa.kernel as kernel
 
@@ -69,6 +72,19 @@ class ScheduleAddRequest(BaseModel):
     command: str
     schedule: str               # once:<ts> | every:<s> | daily:<HH:MM> | cron:...
     session: Optional[str] = None
+
+
+class AuditEntryInfo(BaseModel):
+    turn_id: str
+    session_id: str
+    raw_input: str
+    skill_name: str
+    model_tier: str
+    success: bool
+    elapsed_ms: int
+    plan_steps: int
+    error: Optional[str] = None
+    created_at: float
 
 
 class TaskInfo(BaseModel):
@@ -195,6 +211,38 @@ def schedule_delete(task_id: str) -> dict:
 @app.get("/audit/stats")
 def audit_stats() -> dict:
     return kernel.get_audit_stats()
+
+
+@app.get("/audit/recent", response_model=list[AuditEntryInfo])
+def audit_recent(n: int = Query(50, ge=1, le=500)) -> list[AuditEntryInfo]:
+    """Return the N most recent audit log entries."""
+    from macroa.kernel.audit import AuditLog
+    from macroa.config.settings import get_settings
+    log = AuditLog(db_path=get_settings().audit_db_path)
+    return [
+        AuditEntryInfo(
+            turn_id=e.turn_id,
+            session_id=e.session_id,
+            raw_input=e.raw_input,
+            skill_name=e.skill_name,
+            model_tier=e.model_tier,
+            success=e.success,
+            elapsed_ms=e.elapsed_ms,
+            plan_steps=e.plan_steps,
+            error=e.error,
+            created_at=e.created_at,
+        )
+        for e in log.recent(n)
+    ]
+
+
+# ------------------------------------------------------------------ /dashboard
+
+@app.get("/")
+@app.get("/dashboard")
+def dashboard() -> FileResponse:
+    """Serve the web dashboard."""
+    return FileResponse(_STATIC / "dashboard.html")
 
 
 # ------------------------------------------------------------------ /health

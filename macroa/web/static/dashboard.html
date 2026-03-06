@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Macroa Dashboard</title>
+  <style>
+    :root {
+      --bg: #0d1117; --surface: #161b22; --border: #30363d;
+      --text: #e6edf3; --muted: #8b949e; --accent: #58a6ff;
+      --green: #3fb950; --red: #f85149; --yellow: #d29922;
+      --nano: #a371f7; --haiku: #58a6ff; --sonnet: #3fb950; --opus: #d29922;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: 'SF Mono', monospace; font-size: 13px; }
+    header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 12px 24px; display: flex; align-items: center; gap: 12px; }
+    header h1 { font-size: 16px; color: var(--accent); }
+    header .status { margin-left: auto; color: var(--green); font-size: 11px; }
+    nav { display: flex; gap: 4px; padding: 12px 24px 0; border-bottom: 1px solid var(--border); }
+    nav button { background: none; border: none; color: var(--muted); padding: 8px 14px; cursor: pointer; border-radius: 6px 6px 0 0; font-family: inherit; font-size: 13px; }
+    nav button.active { color: var(--text); background: var(--surface); border: 1px solid var(--border); border-bottom: 1px solid var(--surface); }
+    main { padding: 20px 24px; }
+    section { display: none; }
+    section.active { display: block; }
+    h2 { font-size: 14px; color: var(--muted); margin-bottom: 16px; text-transform: uppercase; letter-spacing: .05em; }
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; margin-bottom: 24px; }
+    .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
+    .stat-card .label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .05em; }
+    .stat-card .value { font-size: 28px; font-weight: 700; margin-top: 6px; }
+    .stat-card .value.green { color: var(--green); }
+    .stat-card .value.red { color: var(--red); }
+    .stat-card .value.accent { color: var(--accent); }
+    table { width: 100%; border-collapse: collapse; background: var(--surface); border-radius: 8px; overflow: hidden; border: 1px solid var(--border); }
+    th { text-align: left; padding: 10px 14px; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .05em; border-bottom: 1px solid var(--border); background: var(--bg); }
+    td { padding: 10px 14px; border-bottom: 1px solid var(--border); }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #1c2128; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+    .badge.nano { background: #3d1f6e; color: var(--nano); }
+    .badge.haiku { background: #0d2344; color: var(--haiku); }
+    .badge.sonnet { background: #0d2e1a; color: var(--sonnet); }
+    .badge.opus { background: #3d2f0a; color: var(--yellow); }
+    .badge.ok { background: #0d2e1a; color: var(--green); }
+    .badge.fail { background: #2e0d0d; color: var(--red); }
+    .run-box { display: flex; gap: 8px; margin-bottom: 20px; }
+    .run-box input { flex: 1; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; color: var(--text); font-family: inherit; font-size: 13px; }
+    .run-box input:focus { outline: none; border-color: var(--accent); }
+    .run-box select { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; color: var(--text); font-family: inherit; }
+    button.primary { background: var(--accent); color: #0d1117; border: none; border-radius: 6px; padding: 8px 16px; cursor: pointer; font-family: inherit; font-weight: 600; }
+    button.primary:hover { opacity: .85; }
+    button.danger { background: var(--red); color: #0d1117; border: none; border-radius: 6px; padding: 4px 10px; cursor: pointer; font-family: inherit; font-size: 11px; }
+    .output-box { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px; white-space: pre-wrap; min-height: 60px; max-height: 300px; overflow-y: auto; line-height: 1.5; }
+    .empty { color: var(--muted); text-align: center; padding: 32px; }
+    .refresh-btn { float: right; background: none; border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; color: var(--muted); cursor: pointer; font-size: 11px; font-family: inherit; }
+    .refresh-btn:hover { color: var(--text); }
+    .tier-bar { display: flex; gap: 4px; margin-top: 8px; }
+    .tier-seg { height: 6px; border-radius: 3px; transition: width .3s; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>⬡ Macroa</h1>
+  <span id="api-base" style="color:var(--muted);font-size:11px;"></span>
+  <span class="status" id="health-dot">● connecting…</span>
+</header>
+
+<nav>
+  <button class="active" onclick="showTab('overview')">Overview</button>
+  <button onclick="showTab('run')">Run</button>
+  <button onclick="showTab('sessions')">Sessions</button>
+  <button onclick="showTab('schedule')">Schedule</button>
+  <button onclick="showTab('audit')">Audit</button>
+</nav>
+
+<main>
+
+  <!-- OVERVIEW -->
+  <section id="tab-overview" class="active">
+    <h2>Overview <button class="refresh-btn" onclick="loadOverview()">↻ refresh</button></h2>
+    <div class="stats-grid" id="stat-cards"></div>
+    <h2 style="margin-top:4px">Model tier distribution</h2>
+    <div class="tier-bar" id="tier-bar"></div>
+    <div id="tier-legend" style="display:flex;gap:16px;margin-top:8px;font-size:11px;color:var(--muted)"></div>
+    <h2 style="margin-top:20px">By skill</h2>
+    <table id="skill-table">
+      <thead><tr><th>Skill</th><th>Calls</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+  <!-- RUN -->
+  <section id="tab-run">
+    <h2>Interactive run</h2>
+    <div class="run-box">
+      <input id="run-input" type="text" placeholder="Type a command… (use ! prefix for shell)" onkeydown="if(event.key==='Enter')doRun()" />
+      <input id="run-session" type="text" placeholder="session (optional)" style="max-width:180px" />
+      <button class="primary" onclick="doRun()">Run</button>
+    </div>
+    <div class="output-box" id="run-output"><span style="color:var(--muted)">Output appears here.</span></div>
+    <div id="run-meta" style="margin-top:8px;color:var(--muted);font-size:11px;"></div>
+  </section>
+
+  <!-- SESSIONS -->
+  <section id="tab-sessions">
+    <h2>Named sessions <button class="refresh-btn" onclick="loadSessions()">↻ refresh</button></h2>
+    <table id="sessions-table">
+      <thead><tr><th>Name</th><th>Turns</th><th>Last active</th><th>ID</th><th></th></tr></thead>
+      <tbody><tr><td colspan="5" class="empty">Loading…</td></tr></tbody>
+    </table>
+  </section>
+
+  <!-- SCHEDULE -->
+  <section id="tab-schedule">
+    <h2>Scheduled tasks <button class="refresh-btn" onclick="loadSchedule()">↻ refresh</button></h2>
+    <div class="run-box" style="flex-wrap:wrap;gap:6px">
+      <input id="sch-label" placeholder="Label" style="max-width:140px" />
+      <input id="sch-cmd" placeholder="Command" style="flex:1" />
+      <input id="sch-spec" placeholder="e.g. every:3600 or daily:09:00" style="max-width:240px" />
+      <button class="primary" onclick="addSchedule()">+ Add</button>
+    </div>
+    <table id="schedule-table">
+      <thead><tr><th>Label</th><th>Schedule</th><th>Next run</th><th>Runs</th><th></th></tr></thead>
+      <tbody><tr><td colspan="5" class="empty">Loading…</td></tr></tbody>
+    </table>
+  </section>
+
+  <!-- AUDIT -->
+  <section id="tab-audit">
+    <h2>Recent audit log <button class="refresh-btn" onclick="loadAudit()">↻ refresh</button></h2>
+    <table id="audit-table">
+      <thead><tr><th>Time</th><th>Input</th><th>Skill</th><th>Tier</th><th>ms</th><th>Status</th></tr></thead>
+      <tbody><tr><td colspan="6" class="empty">Loading…</td></tr></tbody>
+    </table>
+  </section>
+
+</main>
+
+<script>
+const BASE = window.location.origin;
+document.getElementById('api-base').textContent = BASE;
+
+// ---- nav ----
+function showTab(id) {
+  document.querySelectorAll('section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + id).classList.add('active');
+  event.target.classList.add('active');
+  const loaders = { overview: loadOverview, sessions: loadSessions, schedule: loadSchedule, audit: loadAudit };
+  if (loaders[id]) loaders[id]();
+}
+
+// ---- health ----
+async function checkHealth() {
+  try {
+    const r = await fetch(BASE + '/health');
+    const dot = document.getElementById('health-dot');
+    dot.textContent = r.ok ? '● online' : '● degraded';
+    dot.style.color = r.ok ? 'var(--green)' : 'var(--red)';
+  } catch { document.getElementById('health-dot').textContent = '● offline'; }
+}
+
+// ---- overview ----
+async function loadOverview() {
+  try {
+    const r = await fetch(BASE + '/audit/stats');
+    const d = await r.json();
+    const cards = [
+      { label: 'Total runs', value: d.total_runs ?? 0, cls: 'accent' },
+      { label: 'Failures', value: d.failures ?? 0, cls: d.failures ? 'red' : 'green' },
+      { label: 'Plan calls', value: d.plan_calls ?? 0, cls: 'accent' },
+    ];
+    document.getElementById('stat-cards').innerHTML = cards.map(c =>
+      `<div class="stat-card"><div class="label">${c.label}</div><div class="value ${c.cls}">${c.value}</div></div>`
+    ).join('');
+
+    const tiers = d.by_tier || [];
+    const total = tiers.reduce((s, t) => s + t.count, 0) || 1;
+    const colors = { nano: 'var(--nano)', haiku: 'var(--haiku)', sonnet: 'var(--sonnet)', opus: 'var(--yellow)' };
+    document.getElementById('tier-bar').innerHTML = tiers.map(t =>
+      `<div class="tier-seg" style="flex:${t.count/total};background:${colors[t.tier]||'#555'}" title="${t.tier}: ${t.count}"></div>`
+    ).join('');
+    document.getElementById('tier-legend').innerHTML = tiers.map(t =>
+      `<span style="color:${colors[t.tier]||'#555'}">■ ${t.tier} (${t.count})</span>`
+    ).join('');
+
+    const tbody = document.querySelector('#skill-table tbody');
+    tbody.innerHTML = (d.by_skill || []).map(s =>
+      `<tr><td>${s.skill}</td><td>${s.count}</td></tr>`
+    ).join('') || '<tr><td colspan="2" class="empty">No data yet.</td></tr>';
+  } catch(e) { console.error(e); }
+}
+
+// ---- run ----
+async function doRun() {
+  const inp = document.getElementById('run-input').value.trim();
+  const sess = document.getElementById('run-session').value.trim() || undefined;
+  if (!inp) return;
+  const out = document.getElementById('run-output');
+  const meta = document.getElementById('run-meta');
+  out.textContent = '…';
+  try {
+    const r = await fetch(BASE + '/run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ input: inp, session: sess }),
+    });
+    const d = await r.json();
+    out.textContent = d.output || d.error || '(empty)';
+    meta.textContent = `skill: ${d.skill || '—'}  tier: ${d.tier || '—'}  ${d.elapsed_ms}ms  session: ${d.session_id}`;
+  } catch(e) { out.textContent = 'Error: ' + e.message; }
+}
+
+// ---- sessions ----
+async function loadSessions() {
+  const tbody = document.querySelector('#sessions-table tbody');
+  try {
+    const r = await fetch(BASE + '/sessions');
+    const sessions = await r.json();
+    if (!sessions.length) { tbody.innerHTML = '<tr><td colspan="5" class="empty">No named sessions.</td></tr>'; return; }
+    tbody.innerHTML = sessions.map(s => {
+      const last = new Date(s.updated_at * 1000).toLocaleString();
+      return `<tr>
+        <td><strong>${s.name}</strong></td>
+        <td>${s.turn_count}</td>
+        <td style="color:var(--muted)">${last}</td>
+        <td style="color:var(--muted);font-size:11px">${s.session_id.slice(0,8)}…</td>
+        <td><button class="danger" onclick="deleteSession('${s.name}')">delete</button></td>
+      </tr>`;
+    }).join('');
+  } catch { tbody.innerHTML = '<tr><td colspan="5" class="empty">Error loading sessions.</td></tr>'; }
+}
+
+async function deleteSession(name) {
+  if (!confirm(`Delete session "${name}"?`)) return;
+  await fetch(BASE + '/sessions/' + encodeURIComponent(name), { method: 'DELETE' });
+  loadSessions();
+}
+
+// ---- schedule ----
+async function loadSchedule() {
+  const tbody = document.querySelector('#schedule-table tbody');
+  try {
+    const r = await fetch(BASE + '/schedule');
+    const tasks = await r.json();
+    if (!tasks.length) { tbody.innerHTML = '<tr><td colspan="5" class="empty">No scheduled tasks.</td></tr>'; return; }
+    tbody.innerHTML = tasks.map(t => {
+      const next = new Date(t.next_run_at * 1000).toLocaleString();
+      return `<tr>
+        <td><strong>${t.label}</strong></td>
+        <td style="color:var(--muted)">${t.schedule}</td>
+        <td>${next}</td>
+        <td>${t.run_count}</td>
+        <td><button class="danger" onclick="deleteTask('${t.task_id}')">delete</button></td>
+      </tr>`;
+    }).join('');
+  } catch { tbody.innerHTML = '<tr><td colspan="5" class="empty">Error loading tasks.</td></tr>'; }
+}
+
+async function addSchedule() {
+  const label = document.getElementById('sch-label').value.trim();
+  const command = document.getElementById('sch-cmd').value.trim();
+  const schedule = document.getElementById('sch-spec').value.trim();
+  if (!label || !command || !schedule) { alert('Fill in all fields.'); return; }
+  const r = await fetch(BASE + '/schedule', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ label, command, schedule }),
+  });
+  if (!r.ok) { const d = await r.json(); alert('Error: ' + (d.detail || r.status)); return; }
+  ['sch-label','sch-cmd','sch-spec'].forEach(id => document.getElementById(id).value = '');
+  loadSchedule();
+}
+
+async function deleteTask(id) {
+  await fetch(BASE + '/schedule/' + id, { method: 'DELETE' });
+  loadSchedule();
+}
+
+// ---- audit ----
+async function loadAudit() {
+  const tbody = document.querySelector('#audit-table tbody');
+  try {
+    // Re-use stats for now; a proper /audit/recent endpoint is next
+    const r = await fetch(BASE + '/audit/stats');
+    const d = await r.json();
+    tbody.innerHTML = '<tr><td colspan="6" class="empty">Detailed audit log requires /audit/recent endpoint (Phase 3).</td></tr>';
+    // Show aggregate by skill as proxy
+    if (d.by_skill && d.by_skill.length) {
+      tbody.innerHTML = d.by_skill.map(s =>
+        `<tr><td colspan="2">${s.skill}</td><td colspan="2" style="color:var(--muted)">${s.count} calls</td><td colspan="2"></td></tr>`
+      ).join('');
+    }
+  } catch { tbody.innerHTML = '<tr><td colspan="6" class="empty">Error loading audit data.</td></tr>'; }
+}
+
+// ---- init ----
+checkHealth();
+loadOverview();
+setInterval(checkHealth, 30000);
+</script>
+</body>
+</html>

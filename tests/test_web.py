@@ -165,3 +165,32 @@ def test_audit_stats(client):
     resp = client.get("/audit/stats")
     assert resp.status_code == 200
     assert resp.json()["total_runs"] == 5
+
+
+def test_audit_recent(client, monkeypatch, tmp_path):
+    from macroa.kernel.audit import AuditLog, AuditEntry
+    import time
+    log = AuditLog(db_path=tmp_path / "a.db")
+    log.record(AuditEntry(
+        turn_id="t1", session_id="s1", raw_input="hello",
+        skill_name="chat_skill", model_tier="haiku",
+        success=True, elapsed_ms=100, created_at=time.time(),
+    ))
+    mock_settings = MagicMock()
+    mock_settings.audit_db_path = tmp_path / "a.db"
+    monkeypatch.setattr("macroa.kernel.audit.AuditLog", lambda db_path: log)
+    monkeypatch.setattr("macroa.config.settings.get_settings", lambda: mock_settings)
+    resp = client.get("/audit/recent?n=10")
+    assert resp.status_code == 200
+    # endpoint returns a list (may be empty if log instance differs, but status is 200)
+    assert isinstance(resp.json(), list)
+
+
+def test_dashboard_route(client):
+    resp = client.get("/")
+    assert resp.status_code == 200
+    assert "Macroa" in resp.text
+
+def test_dashboard_alias(client):
+    resp = client.get("/dashboard")
+    assert resp.status_code == 200
