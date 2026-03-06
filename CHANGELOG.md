@@ -6,6 +6,18 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.2.4] — 2026-03-06
+
+### Fixed
+- **Router JSON parse failure** — LLM driver now passes `response_format={"type": "json_object"}` to the API when `expect_json=True`, forcing structured output instead of relying on text instructions alone. Eliminates the `"Expecting value: line 1 column 1 (char 0)"` warning that caused every turn to fall back to `chat_skill`.
+- **Markdown fence stripping** — added `_extract_json()` in `router.py` to strip ` ```json ` / ` ``` ` fences before parsing, covering models that ignore the "no fences" instruction.
+
+### Added
+- **Identity layer** (`macroa/kernel/identity.py`) — `build_system_prompt()` loads `~/.macroa/IDENTITY.md`, `USER.md`, and `SOUL.md` as the live system prompt. On first boot (no `IDENTITY.md`), writes and loads `~/.macroa/BOOTSTRAP.md` which guides an onboarding conversation to establish the AI's name, personality, and emoji.
+- **Memory-aware chat** — `chat_skill` now searches the memory driver for facts relevant to each query and appends them to the system prompt, so "what do you know about me" returns stored facts even when routed as a general chat turn.
+
+---
+
 ## [0.2.3] — 2026-03-06
 
 ### Fixed

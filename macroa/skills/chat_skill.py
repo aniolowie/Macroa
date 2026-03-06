@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from macroa.drivers.llm_driver import LLMDriverError
+from macroa.kernel.identity import build_system_prompt
 from macroa.stdlib.schema import (
     Context,
     DriverBundle,
@@ -23,15 +24,21 @@ MANIFEST = SkillManifest(
     deterministic=False,
 )
 
-_SYSTEM_PROMPT = (
-    "You are Macroa, a personal AI assistant. "
-    "Be concise, accurate, and helpful. "
-    "If you are uncertain, say so rather than guessing."
-)
+def _build_system(intent: Intent, drivers: DriverBundle) -> str:
+    """Build system prompt: identity files + relevant memory facts."""
+    base = build_system_prompt()
+    try:
+        results = drivers.memory.search(intent.raw, namespace=None)
+        if results:
+            facts = "\n".join(f"- {r['key']}: {r['value']}" for r in results[:10])
+            base = base + f"\n\nKnown facts about the user:\n{facts}"
+    except Exception:
+        pass
+    return base
 
 
-def _build_messages(intent: Intent, context: Context) -> list[dict[str, str]]:
-    messages: list[dict[str, str]] = [{"role": "system", "content": _SYSTEM_PROMPT}]
+def _build_messages(intent: Intent, context: Context, drivers: DriverBundle) -> list[dict[str, str]]:
+    messages: list[dict[str, str]] = [{"role": "system", "content": _build_system(intent, drivers)}]
     for entry in context.entries:
         if entry.role in ("user", "assistant"):
             messages.append({"role": entry.role, "content": entry.content})
@@ -40,7 +47,7 @@ def _build_messages(intent: Intent, context: Context) -> list[dict[str, str]]:
 
 
 def run(intent: Intent, context: Context, drivers: DriverBundle) -> SkillResult:
-    messages = _build_messages(intent, context)
+    messages = _build_messages(intent, context, drivers)
     try:
         response = drivers.llm.complete(
             messages=messages,

@@ -69,6 +69,8 @@ class LLMDriver:
             "temperature": temperature,
             "max_tokens": max_tokens,
         }
+        if expect_json:
+            kwargs["response_format"] = {"type": "json_object"}
 
         try:
             response = self._client.chat.completions.create(**kwargs)
