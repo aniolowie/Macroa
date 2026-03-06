@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import getpass
 import importlib.metadata
-import time
 
 from rich.columns import Columns
 from rich.console import Console
@@ -131,7 +130,7 @@ def print_banner() -> None:
     left = Text()
     left.append("\n")
     left.append(" ◈ ", style="bold cyan")
-    left.append(f"Macroa  ", style="bold white")
+    left.append("Macroa  ", style="bold white")
     left.append(f"v{version}", style="dim")
     left.append("\n")
     left.append(" ◈ ", style="bold cyan")

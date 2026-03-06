@@ -16,7 +16,6 @@ import os
 import sys
 from pathlib import Path
 
-from rich.columns import Columns
 from rich.console import Console
 from rich.panel import Panel
 from rich.prompt import Confirm, Prompt
@@ -128,7 +127,7 @@ def _step_name() -> str:
     )
     default_name = getpass.getuser().capitalize()
     try:
-        name = Prompt.ask(f"  [bold]Your name[/bold]", default=default_name).strip()
+        name = Prompt.ask("  [bold]Your name[/bold]", default=default_name).strip()
     except (KeyboardInterrupt, EOFError):
         name = default_name
     name = name or default_name

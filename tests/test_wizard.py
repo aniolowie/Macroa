@@ -3,13 +3,9 @@
 from __future__ import annotations
 
 import os
-from pathlib import Path
-from unittest.mock import MagicMock, patch
-
-import pytest
+from unittest.mock import patch
 
 from macroa.cli import wizard as wiz
-
 
 # ------------------------------------------------------------------ needs_setup
 
@@ -143,7 +139,6 @@ def test_get_user_name_from_env(monkeypatch):
 
 def test_get_user_name_fallback(monkeypatch):
     monkeypatch.delenv("MACROA_USER_NAME", raising=False)
-    from macroa.cli import renderer
     # Patch get_settings to raise so we fall back to getpass
     with patch("macroa.cli.renderer._get_user_name") as mock_fn:
         mock_fn.return_value = "Fallback"
@@ -158,10 +153,6 @@ def test_build_model_table_has_four_rows(monkeypatch):
 
 
 def test_get_audit_summary_no_activity(tmp_path, monkeypatch):
-    from macroa.cli.renderer import _get_audit_summary
-    from macroa.kernel.audit import AuditLog
-
-    log = AuditLog(db_path=tmp_path / "audit.db")
     with patch("macroa.cli.renderer._get_audit_summary") as mock_fn:
         mock_fn.return_value = "No prior activity — let's get started"
         summary = mock_fn()

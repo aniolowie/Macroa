@@ -10,8 +10,8 @@ import click
 from rich.prompt import Prompt
 from rich.table import Table
 
-from macroa.cli import wizard as _wizard
 import macroa.kernel as kernel
+from macroa.cli import wizard as _wizard
 from macroa.cli.renderer import (
     console,
     print_banner,
