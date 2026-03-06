@@ -78,6 +78,42 @@ def test_write_env_injects_into_process(tmp_path, monkeypatch):
 
 # ------------------------------------------------------------------ _load_macroa_env
 
+def test_project_env_beats_wizard_env(tmp_path, monkeypatch, tmp_path_factory):
+    """Project .env must take priority over ~/.macroa/.env (regression for override bug)."""
+    from dotenv import load_dotenv
+
+    wizard_env = tmp_path / "macroa.env"
+    wizard_env.write_text("MACROA_CONTEXT_WINDOW=5\n")
+
+    project_env = tmp_path / "project.env"
+    project_env.write_text("MACROA_CONTEXT_WINDOW=99\n")
+
+    # Simulate the correct loading order: project first, wizard second, both override=False.
+    # With override=False the FIRST caller wins for each variable.
+    monkeypatch.delenv("MACROA_CONTEXT_WINDOW", raising=False)
+    load_dotenv(project_env, override=False)  # project wins over wizard
+    load_dotenv(wizard_env, override=False)   # wizard only fills gaps
+
+    assert os.environ.get("MACROA_CONTEXT_WINDOW") == "99"
+
+
+def test_shell_env_beats_both(tmp_path, monkeypatch):
+    """Real shell env vars must win over both .env files."""
+    from dotenv import load_dotenv
+
+    wizard_env = tmp_path / "macroa.env"
+    wizard_env.write_text("MACROA_CONTEXT_WINDOW=1\n")
+    project_env = tmp_path / "project.env"
+    project_env.write_text("MACROA_CONTEXT_WINDOW=2\n")
+
+    monkeypatch.setenv("MACROA_CONTEXT_WINDOW", "42")  # pre-set in os.environ
+    # override=False never touches vars already in os.environ
+    load_dotenv(project_env, override=False)
+    load_dotenv(wizard_env, override=False)
+
+    assert os.environ.get("MACROA_CONTEXT_WINDOW") == "42"
+
+
 def test_load_macroa_env_does_not_overwrite_existing(tmp_path, monkeypatch):
     env_path = tmp_path / ".env"
     env_path.write_text("OPENROUTER_API_KEY=sk-or-from-file\n")

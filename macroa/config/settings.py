@@ -9,10 +9,13 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-# Load user-level config first (written by wizard), then project .env.
-# override=False means project .env / shell env vars always win.
-load_dotenv(Path.home() / ".macroa" / ".env", override=False)
-load_dotenv(override=False)
+# Priority (highest to lowest):
+#   1. Shell environment variables — already in os.environ, load_dotenv never touches them
+#   2. Project .env (current directory) — loaded first, wins over wizard defaults
+#   3. ~/.macroa/.env — written by setup wizard, only fills gaps not set above
+# Both calls use override=False: whichever call runs first wins for each variable.
+load_dotenv(override=False)                                           # project .env
+load_dotenv(Path.home() / ".macroa" / ".env", override=False)        # wizard defaults
 
 
 @dataclass(frozen=True)
