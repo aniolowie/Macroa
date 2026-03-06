@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
-import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from macroa.kernel.identity import _DEFAULT_BOOTSTRAP, _FALLBACK, build_system_prompt
-from macroa.stdlib.schema import Context, DriverBundle, Intent, ModelTier
-
+from macroa.kernel.identity import _FALLBACK, build_system_prompt
+from macroa.stdlib.schema import DriverBundle, Intent, ModelTier
 
 # ------------------------------------------------------------------ identity.build_system_prompt
 
