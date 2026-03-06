@@ -20,7 +20,8 @@ def test_set_get_compat(tmp_path):
 def test_delete_compat(tmp_path):
     m = _mem(tmp_path)
     m.set("user", "x", "y")
-    assert m.delete("user", "x") is True
+    deleted = m.delete("user", "x")
+    assert deleted is True
     assert m.get("user", "x") is None
 
 

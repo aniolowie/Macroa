@@ -89,9 +89,11 @@ def test_memory_missing_key(tmp_path):
 def test_memory_delete(tmp_path):
     driver = MemoryDriver(backend="sqlite", db_path=tmp_path / "mem.db")
     driver.set("user", "foo", "bar")
-    assert driver.delete("user", "foo") is True
+    del1 = driver.delete("user", "foo")
+    assert del1 is True
     assert driver.get("user", "foo") is None
-    assert driver.delete("user", "foo") is False
+    del2 = driver.delete("user", "foo")
+    assert del2 is False
 
 
 def test_memory_search(tmp_path):

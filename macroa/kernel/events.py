@@ -80,17 +80,13 @@ class EventBus:
     def unsubscribe(self, event_type: str, handler: HandlerFn) -> None:
         with self._lock:
             handlers = self._handlers.get(event_type, [])
-            try:
+            if handler in handlers:
                 handlers.remove(handler)
-            except ValueError:
-                pass
 
     def unsubscribe_all(self, handler: HandlerFn) -> None:
         with self._lock:
-            try:
+            if handler in self._wildcard:
                 self._wildcard.remove(handler)
-            except ValueError:
-                pass
 
     def emit(self, event: Event) -> None:
         """Dispatch event to all registered handlers. Handlers run synchronously.

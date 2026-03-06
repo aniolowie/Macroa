@@ -57,7 +57,7 @@ class BaseTool(ABC):
     @abstractmethod
     def execute(self, intent: Intent, context: Context, drivers: DriverBundle) -> SkillResult:
         """Run the tool. Never raise — always return SkillResult."""
-        ...
+        raise NotImplementedError
 
     def setup(self, drivers: DriverBundle) -> None:
         """Called once when the tool is first registered.
