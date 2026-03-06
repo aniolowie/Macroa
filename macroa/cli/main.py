@@ -53,7 +53,7 @@ def cli(ctx: click.Context, debug: bool, session: str | None) -> None:
                 from macroa.config.settings import get_settings
                 get_settings.cache_clear()
             except Exception:
-                pass
+                logging.exception("Failed to clear settings cache after running setup wizard")
         _repl(debug=debug, session_name=session)
 
 
