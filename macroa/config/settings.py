@@ -7,14 +7,17 @@ from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 
-from dotenv import load_dotenv
+from dotenv import find_dotenv, load_dotenv
 
 # Priority (highest to lowest):
 #   1. Shell environment variables — already in os.environ, load_dotenv never touches them
-#   2. Project .env (current directory) — loaded first, wins over wizard defaults
+#   2. Project .env (current working directory only) — loaded first, wins over wizard defaults
 #   3. ~/.macroa/.env — written by setup wizard, only fills gaps not set above
-# Both calls use override=False: whichever call runs first wins for each variable.
-load_dotenv(override=False)                                           # project .env
+# find_dotenv(usecwd=True) restricts the upward search to CWD, preventing the package's own
+# .env from being loaded when macroa is run from an unrelated directory.
+_project_dotenv = find_dotenv(usecwd=True)
+if _project_dotenv:
+    load_dotenv(_project_dotenv, override=False)                      # project .env (CWD only)
 load_dotenv(Path.home() / ".macroa" / ".env", override=False)        # wizard defaults
 
 
