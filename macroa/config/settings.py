@@ -42,7 +42,9 @@ class Settings:
     scheduler_db_path: Path  # scheduled tasks
     scheduler_poll: int      # seconds between scheduler ticks
     watchdog_db_path: Path   # watchdog observer registry
-    network_timeout: int     # default HTTP timeout in seconds
+    session_budget_usd: float    # max USD spend per session (0 = unlimited)
+    session_budget_tokens: int   # max tokens per session (0 = unlimited)
+    network_timeout: int         # default HTTP timeout in seconds
     user_name: str           # display name set during setup wizard
 
     @property
@@ -113,6 +115,8 @@ def get_settings() -> Settings:
         watchdog_db_path=Path(
             os.environ.get("MACROA_WATCHDOG_DB_PATH", str(macroa_dir / "logs" / "watchdog.db"))
         ).expanduser(),
+        session_budget_usd=float(os.environ.get("MACROA_SESSION_BUDGET_USD", "0")),
+        session_budget_tokens=int(os.environ.get("MACROA_SESSION_BUDGET_TOKENS", "0")),
         network_timeout=int(os.environ.get("MACROA_NETWORK_TIMEOUT", "30")),
         user_name=os.environ.get("MACROA_USER_NAME", ""),
     )

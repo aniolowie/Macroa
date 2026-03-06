@@ -35,6 +35,11 @@ class LLMDriver:
             default_headers=extra_headers if extra_headers else None,
         )
 
+    # Token usage from the most recent call — read by BudgetManager after each round.
+    # Not thread-safe across concurrent sessions; acceptable since each session
+    # runs in a single thread and reads usage immediately after its own call.
+    last_usage: dict = {}
+
     def complete(
         self,
         messages: list[dict[str, str]],
@@ -75,6 +80,12 @@ class LLMDriver:
         try:
             response = self._client.chat.completions.create(**kwargs)
             content = response.choices[0].message.content
+            if response.usage:
+                self.last_usage = {
+                    "model": model_id,
+                    "prompt_tokens": response.usage.prompt_tokens,
+                    "completion_tokens": response.usage.completion_tokens,
+                }
             return content or ""
         except APIError as exc:
             raise LLMDriverError(f"OpenRouter API error: {exc}") from exc
@@ -109,6 +120,12 @@ class LLMDriver:
                 max_tokens=max_tokens,
             )
             msg = response.choices[0].message
+            if response.usage:
+                self.last_usage = {
+                    "model": model_id,
+                    "prompt_tokens": response.usage.prompt_tokens,
+                    "completion_tokens": response.usage.completion_tokens,
+                }
             return (msg.content or "", list(msg.tool_calls or []))
         except APIError as exc:
             raise LLMDriverError(f"OpenRouter API error: {exc}") from exc

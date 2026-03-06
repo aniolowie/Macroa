@@ -17,9 +17,11 @@ from macroa.drivers.memory_driver import MemoryDriver
 from macroa.drivers.network_driver import NetworkDriver
 from macroa.drivers.shell_driver import ShellDriver
 from macroa.kernel.audit import AuditEntry, AuditLog
+from macroa.kernel.budget import BudgetManager
 from macroa.kernel.context import ContextManager
 from macroa.kernel.dispatcher import Dispatcher
 from macroa.kernel.events import Event, Events, bus
+from macroa.kernel.ipc import IPCBus
 from macroa.kernel.planner import Planner
 from macroa.kernel.router import Router
 from macroa.kernel.scheduler import Scheduler
@@ -91,6 +93,13 @@ def _get_drivers() -> DriverBundle:
         vfs.mount("/sessions",  LocalBackend(MACROA_DIR / "sessions",         "sessions"))
         vfs.mount("/fs",        LocalBackend(Path("/"),                        "fs"))
 
+        budget = BudgetManager(
+            budget_usd=settings.session_budget_usd,
+            budget_tokens=settings.session_budget_tokens,
+        )
+
+        ipc = IPCBus()
+
         _drivers = DriverBundle(
             llm=LLMDriver(
                 api_key=settings.openrouter_api_key,
@@ -103,6 +112,8 @@ def _get_drivers() -> DriverBundle:
             memory=memory,
             network=NetworkDriver(timeout=settings.network_timeout),
             vfs=vfs,
+            budget=budget,
+            ipc=ipc,
         )
     return _drivers
 

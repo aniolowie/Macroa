@@ -57,6 +57,7 @@ class Events:
     RESEARCH_SUBAGENT_START = "research.subagent.start"  # n, total, objective
     RESEARCH_TOOL_CALL      = "research.tool.call"       # n, total, tool, arg
     RESEARCH_SUBAGENT_DONE  = "research.subagent.done"   # n, total, citation_count
+    IPC_EMIT                = "ipc.emit"                 # channel, preview (first 120 chars)
 
 
 @dataclass

@@ -46,16 +46,36 @@ class AgentLoop:
                 messages.append({"role": entry.role, "content": entry.content})
         messages.append({"role": "user", "content": intent.raw})
 
+        session_id = context.session_id
+        budget = self._drivers.budget  # may be None in tests
+
         tool_rounds = 0
         try:
             while tool_rounds < _MAX_ROUNDS:
+                # Check session budget before each LLM call
+                if budget and budget.is_over(session_id):
+                    return self._budget_exceeded(
+                        messages, intent, tool_rounds, budget.stats(session_id)
+                    )
+
                 content, tool_calls = self._drivers.llm.complete_with_tools(
                     messages=messages,
                     tools=TOOL_SCHEMAS,
                     tier=intent.model_tier,
                 )
 
+                # Record token usage after each call
+                if budget and self._drivers.llm.last_usage:
+                    u = self._drivers.llm.last_usage
+                    budget.record(
+                        session_id,
+                        u.get("prompt_tokens", 0),
+                        u.get("completion_tokens", 0),
+                        u.get("model", ""),
+                    )
+
                 if not tool_calls:
+                    stats = budget.stats(session_id) if budget else {}
                     return SkillResult(
                         output=content,
                         success=True,
@@ -65,6 +85,7 @@ class AgentLoop:
                             "skill": "agent_skill",
                             "tier": intent.model_tier.value,
                             "tool_rounds": tool_rounds,
+                            **({} if not stats else {"budget": stats}),
                         },
                     )
 
@@ -99,14 +120,8 @@ class AgentLoop:
 
                 tool_rounds += 1
 
-            return SkillResult(
-                output="I hit my tool call limit before finishing. Please ask me to continue.",
-                success=False,
-                error="Tool call limit exceeded",
-                turn_id=intent.turn_id,
-                model_tier=intent.model_tier,
-                metadata={"skill": "agent_skill", "tool_rounds": tool_rounds},
-            )
+            # Hit round limit — force a graceful summary
+            return self._force_summarize(messages, intent, tool_rounds, reason="round limit")
 
         except LLMDriverError as exc:
             return SkillResult(
@@ -125,3 +140,44 @@ class AgentLoop:
                 turn_id=intent.turn_id,
                 model_tier=intent.model_tier,
             )
+
+    def _force_summarize(
+        self, messages: list[dict], intent: Intent, rounds: int, reason: str
+    ) -> SkillResult:
+        """Ask the LLM to summarise what it has done so far instead of stopping cold."""
+        logger.warning("AgentLoop: %s after %d rounds — forcing summarise", reason, rounds)
+        summarise_msgs = messages + [{"role": "user", "content": (
+            f"You have been stopped ({reason}). "
+            "Summarise clearly what you have accomplished so far and what remains to be done. "
+            "Be concise and direct."
+        )}]
+        try:
+            summary = self._drivers.llm.complete(
+                messages=summarise_msgs,
+                tier=intent.model_tier,
+                temperature=0.0,
+            )
+        except Exception as exc:
+            summary = f"(summary unavailable: {exc})"
+
+        return SkillResult(
+            output=summary,
+            success=False,
+            error=reason,
+            turn_id=intent.turn_id,
+            model_tier=intent.model_tier,
+            metadata={"skill": "agent_skill", "tool_rounds": rounds, "stopped_by": reason},
+        )
+
+    def _budget_exceeded(
+        self, messages: list[dict], intent: Intent, rounds: int, stats: dict
+    ) -> SkillResult:
+        spent = stats.get("spent_usd", 0)
+        tokens = stats.get("spent_tokens", 0)
+        logger.warning(
+            "AgentLoop: session budget exceeded — $%.4f / %d tokens after %d rounds",
+            spent, tokens, rounds,
+        )
+        result = self._force_summarize(messages, intent, rounds, reason="session budget exceeded")
+        result.metadata["budget"] = stats
+        return result
