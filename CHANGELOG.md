@@ -6,6 +6,21 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.2.8] — 2026-03-06
+
+### Added
+- **Multi-agent research system** (`macroa/research/`) — four-phase orchestrated pipeline:
+  - **Phase 1 — Orchestrate** (SONNET): decomposes query into 3–5 independent investigation trajectories
+  - **Phase 2 — Investigate** (HAIKU × N): each subagent runs an OODA-guided web tool loop (`web_search` + `fetch_url` only), emitting `<findings>` + `<citations>` XML
+  - **Phase 3 — Verify** (HAIKU): cross-checks all findings, flags low-confidence claims
+  - **Phase 4 — Synthesize** (SONNET): combines verified findings into a citation-rich markdown report
+- **`research_skill`** — routes "research", "investigate", "look into", "compile a report" etc.; saves report to `~/.macroa/research/<timestamp>-<slug>.md`
+- **`web_search` + `fetch_url` agent tools** — DuckDuckGo HTML search and URL fetch available to all agent turns, not just research
+- **Memory routing fix** — `memory_skill` excluded from keyword shortcut so "remember that my X is Y" correctly routes through LLM parameter extraction (action=set, key, value)
+- **Agent tool cap raised** — `_MAX_ROUNDS` increased from 10 → 20 to support multi-source research
+
+---
+
 ## [0.2.7] — 2026-03-06
 
 ### Fixed

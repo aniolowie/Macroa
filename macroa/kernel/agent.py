@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 ConfirmCallback = Callable[[str, str], bool]
 
-_MAX_ROUNDS = 10  # safety cap — prevents runaway tool loops
+_MAX_ROUNDS = 20  # safety cap — allows multi-source research without premature cutoff
 
 
 class AgentLoop:
