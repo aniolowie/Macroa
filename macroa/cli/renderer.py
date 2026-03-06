@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import getpass
 import importlib.metadata
+import logging
 
 from rich.columns import Columns
 from rich.console import Console
@@ -192,7 +193,10 @@ def _get_user_name() -> str:
         if s.user_name:
             return s.user_name
     except Exception:
-        pass
+        logging.getLogger(__name__).debug(
+            "Failed to load configured user name; falling back to system user",
+            exc_info=True,
+        )
     return getpass.getuser().capitalize()
 
 
