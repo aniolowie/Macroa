@@ -294,8 +294,9 @@ def setup() -> None:
     try:
         from macroa.config.settings import get_settings
         get_settings.cache_clear()
-    except Exception:
-        pass
+    except Exception as exc:
+        # Cache clearing is a best-effort step; log failures but do not abort setup.
+        logging.warning("Failed to clear settings cache during setup: %s", exc)
 
 
 @cli.command()
