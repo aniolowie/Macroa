@@ -30,6 +30,8 @@ class Settings:
     heartbeat_interval: int  # seconds between persistent-tool heartbeat ticks
     audit_db_path: Path      # audit log DB (separate from memory so wipes don't erase history)
     sessions_db_path: Path   # named sessions + persisted context
+    scheduler_db_path: Path  # scheduled tasks
+    scheduler_poll: int      # seconds between scheduler ticks
     network_timeout: int     # default HTTP timeout in seconds
 
     @property
@@ -86,5 +88,9 @@ def get_settings() -> Settings:
         sessions_db_path=Path(
             os.environ.get("MACROA_SESSIONS_DB_PATH", str(macroa_dir / "sessions.db"))
         ).expanduser(),
+        scheduler_db_path=Path(
+            os.environ.get("MACROA_SCHEDULER_DB_PATH", str(macroa_dir / "scheduler.db"))
+        ).expanduser(),
+        scheduler_poll=int(os.environ.get("MACROA_SCHEDULER_POLL", "10")),
         network_timeout=int(os.environ.get("MACROA_NETWORK_TIMEOUT", "30")),
     )

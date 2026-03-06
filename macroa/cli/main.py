@@ -94,6 +94,74 @@ def sessions_delete(name: str) -> None:
         render_error(f"Session '{name}' not found.")
 
 
+# ------------------------------------------------------------------ schedule subcommand
+
+
+@cli.group()
+def schedule() -> None:
+    """Manage scheduled commands."""
+
+
+@schedule.command("add")
+@click.argument("label")
+@click.argument("command")
+@click.argument("spec")
+@click.option("--session", default=None, help="Session name or ID to run under.")
+def schedule_add(label: str, command: str, spec: str, session: str | None) -> None:
+    """Schedule COMMAND under LABEL with recurrence SPEC.
+
+    \b
+    SPEC formats:
+      once:<unix_timestamp>        run once at epoch second
+      every:<seconds>              repeat every N seconds
+      daily:<HH:MM>                every day at HH:MM local time
+      cron:<min> <hr> <dom> <mon> <dow>   5-field cron
+    """
+    try:
+        session_id = _resolve_session(session) if session else None
+        task = kernel.schedule_add(label=label, command=command, schedule=spec, session_id=session_id)
+        render_info(f"Task [bold]{task.label}[/bold] scheduled (ID: {task.task_id[:8]}…)")
+    except ValueError as exc:
+        render_error(str(exc))
+
+
+@schedule.command("list")
+@click.option("--all", "show_all", is_flag=True, help="Include disabled tasks.")
+def schedule_list(show_all: bool) -> None:
+    """List scheduled tasks."""
+    tasks = kernel.schedule_list(include_disabled=show_all)
+    if not tasks:
+        render_info("No scheduled tasks.")
+        return
+    table = Table(title="Scheduled Tasks", show_lines=False)
+    table.add_column("Label", style="bold cyan")
+    table.add_column("Schedule")
+    table.add_column("Next run", style="dim")
+    table.add_column("Runs", justify="right")
+    table.add_column("ID", style="dim")
+    for t in tasks:
+        next_r = time.strftime("%Y-%m-%d %H:%M", time.localtime(t.next_run_at))
+        table.add_row(t.label, t.schedule, next_r, str(t.run_count), t.task_id[:8] + "…")
+    console.print(table)
+
+
+@schedule.command("delete")
+@click.argument("task_id")
+def schedule_delete(task_id: str) -> None:
+    """Delete a scheduled task by ID prefix."""
+    # support prefix matching
+    tasks = kernel.schedule_list(include_disabled=True)
+    matches = [t for t in tasks if t.task_id.startswith(task_id)]
+    if not matches:
+        render_error(f"No task found matching '{task_id}'.")
+        return
+    if len(matches) > 1:
+        render_error(f"Ambiguous prefix — {len(matches)} tasks match. Be more specific.")
+        return
+    kernel.schedule_delete(matches[0].task_id)
+    render_info(f"Task '{matches[0].label}' deleted.")
+
+
 # ------------------------------------------------------------------ REPL
 
 

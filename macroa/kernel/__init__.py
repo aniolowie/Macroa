@@ -20,6 +20,7 @@ from macroa.kernel.dispatcher import Dispatcher
 from macroa.kernel.events import Event, EventBus, Events, bus
 from macroa.kernel.planner import Planner
 from macroa.kernel.router import Router
+from macroa.kernel.scheduler import Scheduler
 from macroa.kernel.sessions import SessionStore
 from macroa.stdlib.schema import DriverBundle, Intent, ModelTier, SkillResult
 from macroa.tools.heartbeat import HeartbeatManager
@@ -38,6 +39,7 @@ _tool_registry: ToolRegistry | None = None
 _heartbeat: HeartbeatManager | None = None
 _audit: AuditLog | None = None
 _session_store: SessionStore | None = None
+_scheduler: Scheduler | None = None
 
 
 def _get_drivers() -> DriverBundle:
@@ -103,6 +105,19 @@ def _get_session_store() -> SessionStore:
         settings = get_settings()
         _session_store = SessionStore(db_path=settings.sessions_db_path)
     return _session_store
+
+
+def _get_scheduler() -> Scheduler:
+    global _scheduler
+    if _scheduler is None:
+        settings = get_settings()
+        _scheduler = Scheduler(
+            db_path=settings.scheduler_db_path,
+            run_fn=run,
+            poll_interval=settings.scheduler_poll,
+        )
+        _scheduler.start()
+    return _scheduler
 
 
 def _get_or_create_session(session_id: str) -> ContextManager:
@@ -308,14 +323,37 @@ def delete_session(name: str) -> bool:
     return store.delete(name)
 
 
+def schedule_add(label: str, command: str, schedule: str, session_id: str | None = None):
+    """Schedule a recurring or one-shot command."""
+    sid = session_id or get_session_id()
+    return _get_scheduler().add(label=label, command=command, schedule=schedule, session_id=sid)
+
+
+def schedule_list(include_disabled: bool = False):
+    """Return all scheduled tasks."""
+    return _get_scheduler().list_tasks(include_disabled=include_disabled)
+
+
+def schedule_delete(task_id: str) -> bool:
+    """Remove a scheduled task by ID."""
+    return _get_scheduler().delete(task_id)
+
+
+def schedule_enable(task_id: str, enabled: bool = True) -> bool:
+    """Enable or disable a scheduled task."""
+    return _get_scheduler().enable(task_id, enabled)
+
+
 def get_audit_stats() -> dict:
     """Return usage stats from the audit log."""
     return _get_audit().stats()
 
 
 def shutdown() -> None:
-    """Graceful shutdown — stop heartbeat, teardown tools, close session store."""
-    global _heartbeat, _tool_registry, _drivers, _session_store
+    """Graceful shutdown — stop heartbeat, scheduler, teardown tools, close session store."""
+    global _heartbeat, _tool_registry, _drivers, _session_store, _scheduler
+    if _scheduler is not None:
+        _scheduler.stop()
     if _heartbeat is not None:
         _heartbeat.stop()
     if _tool_registry is not None and _drivers is not None:
