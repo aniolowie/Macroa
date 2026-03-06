@@ -17,16 +17,23 @@ from macroa.drivers.memory_driver import MemoryDriver
 from macroa.drivers.network_driver import NetworkDriver
 from macroa.drivers.shell_driver import ShellDriver
 from macroa.kernel.audit import AuditEntry, AuditLog
+from macroa.kernel.budget import BudgetManager
 from macroa.kernel.context import ContextManager
 from macroa.kernel.dispatcher import Dispatcher
 from macroa.kernel.events import Event, Events, bus
+from macroa.kernel.ipc import IPCBus
 from macroa.kernel.planner import Planner
 from macroa.kernel.router import Router
 from macroa.kernel.scheduler import Scheduler
 from macroa.kernel.sessions import SessionStore
+from macroa.kernel.watchdog import WatchdogManager
 from macroa.stdlib.schema import DriverBundle, Intent, SkillResult
 from macroa.tools.heartbeat import HeartbeatManager
 from macroa.tools.registry import ToolRegistry
+from macroa.vfs import VFS
+from macroa.vfs.layout import MACROA_DIR, bootstrap_layout
+from macroa.vfs.local import LocalBackend
+from macroa.vfs.memory import MemoryBackend
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +56,7 @@ def _get_sudo_approved(session_id: str) -> set[str]:
 
 
 def _is_first_boot() -> bool:
-    return not (Path.home() / ".macroa" / "IDENTITY.md").exists()
+    return not (MACROA_DIR / "identity" / "IDENTITY.md").exists()
 
 # Module-level singletons (lazy-initialized)
 _drivers: DriverBundle | None = None
@@ -59,12 +66,40 @@ _heartbeat: HeartbeatManager | None = None
 _audit: AuditLog | None = None
 _session_store: SessionStore | None = None
 _scheduler: Scheduler | None = None
+_watchdog: WatchdogManager | None = None
 
 
 def _get_drivers() -> DriverBundle:
     global _drivers
     if _drivers is None:
+        # Ensure ~/.macroa/ directory tree exists and migrate any legacy flat files
+        bootstrap_layout()
+
         settings = get_settings()
+
+        memory = MemoryDriver(
+            backend=settings.memory_backend,
+            db_path=settings.memory_db_path,
+        )
+
+        # Build the VFS — mount order doesn't matter; longest prefix always wins
+        vfs = VFS()
+        vfs.mount("/mem",       MemoryBackend(memory))
+        vfs.mount("/identity",  LocalBackend(MACROA_DIR / "identity",         "identity"))
+        vfs.mount("/workspace", LocalBackend(MACROA_DIR / "workspace",        "workspace"))
+        vfs.mount("/research",  LocalBackend(MACROA_DIR / "research",         "research"))
+        vfs.mount("/tools",     LocalBackend(MACROA_DIR / "tools",            "tools"))
+        vfs.mount("/logs",      LocalBackend(MACROA_DIR / "logs",             "logs"))
+        vfs.mount("/sessions",  LocalBackend(MACROA_DIR / "sessions",         "sessions"))
+        vfs.mount("/fs",        LocalBackend(Path("/"),                        "fs"))
+
+        budget = BudgetManager(
+            budget_usd=settings.session_budget_usd,
+            budget_tokens=settings.session_budget_tokens,
+        )
+
+        ipc = IPCBus()
+
         _drivers = DriverBundle(
             llm=LLMDriver(
                 api_key=settings.openrouter_api_key,
@@ -74,11 +109,11 @@ def _get_drivers() -> DriverBundle:
             ),
             shell=ShellDriver(),
             fs=FSDriver(),
-            memory=MemoryDriver(
-                backend=settings.memory_backend,
-                db_path=settings.memory_db_path,
-            ),
+            memory=memory,
             network=NetworkDriver(timeout=settings.network_timeout),
+            vfs=vfs,
+            budget=budget,
+            ipc=ipc,
         )
     return _drivers
 
@@ -108,6 +143,11 @@ def _get_registry() -> SkillRegistry:
         _tool_registry.load_from_dir(settings.builtin_tools_dir, None)
         _tool_registry.load_from_dir(settings.tools_dir, drivers)
         _tool_registry.inject_into(_registry)
+
+        # Publish the live skill list to the identity layer so the agent
+        # can accurately describe its own capabilities.
+        from macroa.kernel.identity import set_runtime_skills
+        set_runtime_skills(_registry.all_manifests())
 
         # Start heartbeat for any persistent tools
         _heartbeat = HeartbeatManager(
@@ -139,6 +179,20 @@ def _get_scheduler() -> Scheduler:
         )
         _scheduler.start()
     return _scheduler
+
+
+def _get_watchdog() -> WatchdogManager:
+    global _watchdog
+    if _watchdog is None:
+        settings = get_settings()
+        drivers = _get_drivers()
+        _watchdog = WatchdogManager(
+            db_path=settings.watchdog_db_path,
+            run_fn=run,
+            memory_driver=drivers.memory,
+        )
+        _watchdog.start()
+    return _watchdog
 
 
 def _get_or_create_session(session_id: str) -> ContextManager:
@@ -405,14 +459,53 @@ def schedule_enable(task_id: str, enabled: bool = True) -> bool:
     return _get_scheduler().enable(task_id, enabled)
 
 
+# ── Watchdog API ──────────────────────────────────────────────────────────────
+
+def watch_add(
+    observer_type: str,
+    config: dict,
+    action: str,
+    session_id: str | None = None,
+    poll_interval: int = 30,
+    once: bool = False,
+):
+    """Register and start a new watchdog observer."""
+    sid = session_id or get_session_id()
+    return _get_watchdog().add(
+        observer_type=observer_type,
+        config=config,
+        action=action,
+        session_id=sid,
+        poll_interval=poll_interval,
+        once=once,
+    )
+
+
+def watch_list():
+    """Return all registered observers."""
+    return _get_watchdog().list_observers()
+
+
+def watch_delete(observer_id: str) -> bool:
+    """Stop and remove an observer."""
+    return _get_watchdog().delete(observer_id)
+
+
+def watch_enable(observer_id: str, enabled: bool = True) -> bool:
+    """Enable or disable an observer."""
+    return _get_watchdog().enable(observer_id, enabled)
+
+
 def get_audit_stats() -> dict:
     """Return usage stats from the audit log."""
     return _get_audit().stats()
 
 
 def shutdown() -> None:
-    """Graceful shutdown — stop heartbeat, scheduler, teardown tools, close session store."""
-    global _heartbeat, _tool_registry, _drivers, _session_store, _scheduler
+    """Graceful shutdown — stop watchdog, scheduler, heartbeat, teardown tools."""
+    global _heartbeat, _tool_registry, _drivers, _session_store, _scheduler, _watchdog
+    if _watchdog is not None:
+        _watchdog.stop()
     if _scheduler is not None:
         _scheduler.stop()
     if _heartbeat is not None:

@@ -82,3 +82,6 @@ class DriverBundle:
     fs: FSDriver
     memory: MemoryDriver
     network: NetworkDriver
+    vfs: Any = None     # VFS instance — None in unit tests, always set in production
+    budget: Any = None  # BudgetManager — None in unit tests, always set in production
+    ipc: Any = None     # IPCBus — None in unit tests, always set in production

@@ -137,6 +137,73 @@ TOOL_SCHEMAS: list[dict] = [
     {
         "type": "function",
         "function": {
+            "name": "ipc_emit",
+            "description": (
+                "Write a message to a named IPC channel. Any other agent listening on the "
+                "same channel (via ipc_read) will receive it. Channels are in-memory only "
+                "and do not persist across kernel restarts. Use this to coordinate with "
+                "other agents running in parallel sessions."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "channel": {
+                        "type": "string",
+                        "description": "Channel name (e.g. 'results', 'alerts', 'agent-b')",
+                    },
+                    "message": {
+                        "type": "string",
+                        "description": "Message content to send",
+                    },
+                },
+                "required": ["channel", "message"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "ipc_read",
+            "description": (
+                "Block-read the next message from a named IPC channel. Returns the message "
+                "or a timeout notice if no message arrives within the timeout window. "
+                "Use this to receive results or signals from another agent."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "channel": {
+                        "type": "string",
+                        "description": "Channel name to read from",
+                    },
+                    "timeout": {
+                        "type": "number",
+                        "description": "Seconds to wait for a message (default 5, max 60)",
+                    },
+                },
+                "required": ["channel"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "ipc_list_channels",
+            "description": (
+                "List all active IPC channels and the number of pending (unread) messages "
+                "in each. Use this to discover what channels exist and whether any have "
+                "messages waiting."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "fetch_url",
             "description": (
                 "Fetch the text content of a web page (HTML stripped). "
@@ -183,6 +250,12 @@ def execute_tool(
             return _web_search(args["query"], drivers)
         if name == "fetch_url":
             return _fetch_url(args["url"], drivers)
+        if name == "ipc_emit":
+            return _ipc_emit(args["channel"], args["message"], drivers)
+        if name == "ipc_read":
+            return _ipc_read(args["channel"], float(args.get("timeout", 5.0)), drivers)
+        if name == "ipc_list_channels":
+            return _ipc_list_channels(drivers)
         return f"[unknown tool: {name!r}]"
     except KeyError as exc:
         return f"[tool {name!r} missing required argument: {exc}]"
@@ -267,6 +340,36 @@ def _web_search(query: str, drivers: DriverBundle) -> str:  # noqa: ARG001
         if body:
             lines.append(f"   {body[:200]}")
         lines.append("")
+    return "\n".join(lines)
+
+
+def _ipc_emit(channel: str, message: str, drivers: DriverBundle) -> str:
+    if drivers.ipc is None:
+        return "[ipc_emit error: IPC bus not available]"
+    drivers.ipc.emit(channel, message)
+    return f"Message sent to channel {channel!r} ({len(message)} chars)"
+
+
+def _ipc_read(channel: str, timeout: float, drivers: DriverBundle) -> str:
+    if drivers.ipc is None:
+        return "[ipc_read error: IPC bus not available]"
+    timeout = min(timeout, 60.0)
+    msg = drivers.ipc.read(channel, timeout=timeout)
+    if msg is None:
+        return f"[ipc_read: no message on {channel!r} after {timeout:.1f}s]"
+    source = f" (from {msg['source']!r})" if msg.get("source") else ""
+    return f"[channel={msg['channel']}{source}] {msg['content']}"
+
+
+def _ipc_list_channels(drivers: DriverBundle) -> str:
+    if drivers.ipc is None:
+        return "[ipc_list_channels error: IPC bus not available]"
+    channels = drivers.ipc.list_channels()
+    if not channels:
+        return "No active IPC channels."
+    lines = ["Active IPC channels:"]
+    for ch in channels:
+        lines.append(f"  {ch['channel']}: {ch['pending']} pending")
     return "\n".join(lines)
 
 

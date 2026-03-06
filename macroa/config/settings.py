@@ -41,7 +41,10 @@ class Settings:
     sessions_db_path: Path   # named sessions + persisted context
     scheduler_db_path: Path  # scheduled tasks
     scheduler_poll: int      # seconds between scheduler ticks
-    network_timeout: int     # default HTTP timeout in seconds
+    watchdog_db_path: Path   # watchdog observer registry
+    session_budget_usd: float    # max USD spend per session (0 = unlimited)
+    session_budget_tokens: int   # max tokens per session (0 = unlimited)
+    network_timeout: int         # default HTTP timeout in seconds
     user_name: str           # display name set during setup wizard
 
     @property
@@ -91,7 +94,7 @@ def get_settings() -> Settings:
         context_window=int(os.environ.get("MACROA_CONTEXT_WINDOW", "20")),
         memory_backend=os.environ.get("MACROA_MEMORY_BACKEND", "sqlite"),
         memory_db_path=Path(
-            os.environ.get("MACROA_MEMORY_DB_PATH", str(macroa_dir / "memory.db"))
+            os.environ.get("MACROA_MEMORY_DB_PATH", str(macroa_dir / "memory" / "memory.db"))
         ).expanduser(),
         http_referer=os.environ.get("MACROA_HTTP_REFERER", "https://github.com/macroa/macroa"),
         app_title=os.environ.get("MACROA_APP_TITLE", "Macroa"),
@@ -100,15 +103,20 @@ def get_settings() -> Settings:
         builtin_tools_dir=builtin_tools_dir,
         heartbeat_interval=int(os.environ.get("MACROA_HEARTBEAT_INTERVAL", "60")),
         audit_db_path=Path(
-            os.environ.get("MACROA_AUDIT_DB_PATH", str(macroa_dir / "audit.db"))
+            os.environ.get("MACROA_AUDIT_DB_PATH", str(macroa_dir / "logs" / "audit.db"))
         ).expanduser(),
         sessions_db_path=Path(
-            os.environ.get("MACROA_SESSIONS_DB_PATH", str(macroa_dir / "sessions.db"))
+            os.environ.get("MACROA_SESSIONS_DB_PATH", str(macroa_dir / "sessions" / "sessions.db"))
         ).expanduser(),
         scheduler_db_path=Path(
-            os.environ.get("MACROA_SCHEDULER_DB_PATH", str(macroa_dir / "scheduler.db"))
+            os.environ.get("MACROA_SCHEDULER_DB_PATH", str(macroa_dir / "logs" / "scheduler.db"))
         ).expanduser(),
         scheduler_poll=int(os.environ.get("MACROA_SCHEDULER_POLL", "10")),
+        watchdog_db_path=Path(
+            os.environ.get("MACROA_WATCHDOG_DB_PATH", str(macroa_dir / "logs" / "watchdog.db"))
+        ).expanduser(),
+        session_budget_usd=float(os.environ.get("MACROA_SESSION_BUDGET_USD", "0")),
+        session_budget_tokens=int(os.environ.get("MACROA_SESSION_BUDGET_TOKENS", "0")),
         network_timeout=int(os.environ.get("MACROA_NETWORK_TIMEOUT", "30")),
         user_name=os.environ.get("MACROA_USER_NAME", ""),
     )
