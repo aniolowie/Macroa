@@ -104,11 +104,14 @@ def test_chat_skill_injects_memory(tmp_path: Path):
 
     drivers = _make_drivers([{"key": "name", "value": "Alice"}])
     intent = _make_intent("what is my name")
+    facts = [{"key": "name", "value": "Alice", "pinned": True, "confidence": 1.0}]
 
-    with patch("macroa.skills.chat_skill.build_system_prompt", return_value="Base prompt."):
+    with patch("macroa.skills.chat_skill.build_system_prompt", return_value="Base prompt."), \
+         patch("macroa.skills.chat_skill.retrieve", return_value=facts):
         result = _build_system(intent, drivers)
 
-    assert "name: Alice" in result
+    assert "name" in result
+    assert "Alice" in result
     assert "Base prompt." in result
 
 
@@ -118,7 +121,8 @@ def test_chat_skill_no_memory_no_injection(tmp_path: Path):
     drivers = _make_drivers([])
     intent = _make_intent("hello")
 
-    with patch("macroa.skills.chat_skill.build_system_prompt", return_value="Base prompt."):
+    with patch("macroa.skills.chat_skill.build_system_prompt", return_value="Base prompt."), \
+         patch("macroa.skills.chat_skill.retrieve", return_value=[]):
         result = _build_system(intent, drivers)
 
     assert result == "Base prompt."

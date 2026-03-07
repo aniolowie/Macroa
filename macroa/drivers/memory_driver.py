@@ -4,28 +4,22 @@ Working memory  → ContextManager (in-RAM rolling deque, already in kernel/cont
 Semantic memory → facts table    (what the user told us; persistent, queryable)
 Episodic memory → episodes table (session summaries; what happened and when)
 
-Why SQLite over .md:
-  - Query power: WHERE confidence > 0.8 AND expires_at IS NULL (impossible in markdown)
-  - ACID transactions: partial writes never corrupt state
-  - Indexed search: O(log n) vs O(n) full-file scan
-  - Schema versioning: ALTER TABLE is cleaner than re-parsing markdown
-  - Zero server, zero cost — SQLite is in every Python install
-  Hybrid: SQLite for machine access, export_markdown() for human review.
-
-Schema version: 2
+Schema version: 3
   v1 → v2: renamed 'memory' table to 'facts', added confidence/source/expires_at/created_at
+  v2 → v3: added 'pinned' column to facts; added FTS5 virtual table + sync triggers
 """
 
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-_CURRENT_VERSION = 2
+_CURRENT_VERSION = 3
 
 
 @dataclass
@@ -33,11 +27,12 @@ class Fact:
     namespace: str
     key: str
     value: str
-    confidence: float = 1.0          # 0.0–1.0; inferred facts start lower
-    source: str = "user"             # 'user' | 'inferred' | 'tool:<name>'
+    confidence: float = 1.0
+    source: str = "user"
+    pinned: bool = False
     created_at: float = field(default_factory=time.time)
     updated_at: float = field(default_factory=time.time)
-    expires_at: float | None = None  # None = never expires
+    expires_at: float | None = None
 
 
 @dataclass
@@ -48,6 +43,20 @@ class Episode:
     turn_count: int = 0
     created_at: float = field(default_factory=time.time)
     id: int | None = None
+
+
+def _fts5_query(text: str) -> str:
+    """Convert free text to a safe FTS5 MATCH expression.
+
+    Strips FTS5 special characters and builds an OR-across-words query so
+    partial matches still surface relevant facts.
+    """
+    sanitised = re.sub(r'["*()^~+\-:]', " ", text)
+    words = [w for w in sanitised.split() if len(w) >= 2]
+    if not words:
+        return '""'
+    # Double-quote each term so FTS5 treats them as phrase literals, not operators
+    return " OR ".join(f'"{w}"' for w in words[:8])
 
 
 class MemoryDriver:
@@ -65,13 +74,12 @@ class MemoryDriver:
 
     def _connect(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self._db_path)
-        conn.execute("PRAGMA journal_mode=WAL")   # safe for concurrent readers
+        conn.execute("PRAGMA journal_mode=WAL")
         conn.execute("PRAGMA foreign_keys=ON")
         return conn
 
     def _init_sqlite(self) -> None:
         with self._connect() as conn:
-            # Schema version tracking
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS schema_version (
                     version    INTEGER NOT NULL,
@@ -84,7 +92,6 @@ class MemoryDriver:
             ).fetchone()[0] or 0
 
             if version < 1:
-                # v1 → flat key-value (legacy, kept for migration detection)
                 conn.execute("""
                     CREATE TABLE IF NOT EXISTS memory (
                         namespace  TEXT NOT NULL,
@@ -96,7 +103,6 @@ class MemoryDriver:
                 """)
 
             if version < 2:
-                # v2 → semantic facts table with full metadata
                 conn.execute("""
                     CREATE TABLE IF NOT EXISTS facts (
                         id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -122,7 +128,6 @@ class MemoryDriver:
                     )
                 """)
 
-                # Migrate v1 data if the old table had rows
                 if version >= 1:
                     conn.execute("""
                         INSERT OR IGNORE INTO facts
@@ -131,16 +136,80 @@ class MemoryDriver:
                         FROM memory
                     """)
 
-                # Indexes
-                conn.execute("CREATE INDEX IF NOT EXISTS idx_facts_ns_key ON facts(namespace, key)")
-                conn.execute("CREATE INDEX IF NOT EXISTS idx_facts_search ON facts(namespace, LOWER(key), LOWER(value))")
-                conn.execute("CREATE INDEX IF NOT EXISTS idx_facts_expires ON facts(expires_at) WHERE expires_at IS NOT NULL")
-                conn.execute("CREATE INDEX IF NOT EXISTS idx_episodes_session ON episodes(session_id)")
-                conn.execute("CREATE INDEX IF NOT EXISTS idx_episodes_created ON episodes(created_at)")
-
+                conn.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_facts_ns_key ON facts(namespace, key)"
+                )
+                conn.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_facts_expires "
+                    "ON facts(expires_at) WHERE expires_at IS NOT NULL"
+                )
+                conn.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_episodes_session ON episodes(session_id)"
+                )
+                conn.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_episodes_created ON episodes(created_at)"
+                )
                 conn.execute(
                     "INSERT INTO schema_version (version, applied_at) VALUES (?, ?)",
                     (2, time.time()),
+                )
+
+            if version < 3:
+                # Add pinned column (safe to run even if column already exists via try/except)
+                try:
+                    conn.execute(
+                        "ALTER TABLE facts ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0"
+                    )
+                except sqlite3.OperationalError:
+                    pass  # column already present (idempotent)
+
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_facts_pinned ON facts(pinned)")
+
+                # FTS5 full-text search table — content-table mode keeps data in facts,
+                # FTS5 shadow tables only store the index.
+                conn.execute("""
+                    CREATE VIRTUAL TABLE IF NOT EXISTS facts_fts USING fts5(
+                        key,
+                        value,
+                        content='facts',
+                        content_rowid='id',
+                        tokenize='porter unicode61'
+                    )
+                """)
+
+                # Triggers to keep FTS5 index in sync with facts table
+                conn.execute("""
+                    CREATE TRIGGER IF NOT EXISTS facts_fts_ai
+                    AFTER INSERT ON facts BEGIN
+                        INSERT INTO facts_fts(rowid, key, value)
+                        VALUES (new.id, new.key, new.value);
+                    END
+                """)
+                conn.execute("""
+                    CREATE TRIGGER IF NOT EXISTS facts_fts_ad
+                    AFTER DELETE ON facts BEGIN
+                        INSERT INTO facts_fts(facts_fts, rowid, key, value)
+                        VALUES ('delete', old.id, old.key, old.value);
+                    END
+                """)
+                conn.execute("""
+                    CREATE TRIGGER IF NOT EXISTS facts_fts_au
+                    AFTER UPDATE ON facts BEGIN
+                        INSERT INTO facts_fts(facts_fts, rowid, key, value)
+                        VALUES ('delete', old.id, old.key, old.value);
+                        INSERT INTO facts_fts(rowid, key, value)
+                        VALUES (new.id, new.key, new.value);
+                    END
+                """)
+
+                # Backfill FTS5 from existing facts
+                conn.execute(
+                    "INSERT INTO facts_fts(rowid, key, value) SELECT id, key, value FROM facts"
+                )
+
+                conn.execute(
+                    "INSERT INTO schema_version (version, applied_at) VALUES (?, ?)",
+                    (3, time.time()),
                 )
 
     # ------------------------------------------------------------------ semantic memory (facts)
@@ -158,27 +227,33 @@ class MemoryDriver:
         confidence: float = 1.0,
         source: str = "user",
         expires_at: float | None = None,
+        pinned: bool = False,
     ) -> None:
         """Store a semantic fact with full metadata."""
         if self._backend == "sqlite":
             now = time.time()
             with self._connect() as conn:
                 conn.execute("""
-                    INSERT INTO facts (namespace, key, value, confidence, source, created_at, updated_at, expires_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO facts
+                        (namespace, key, value, confidence, source, created_at, updated_at,
+                         expires_at, pinned)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(namespace, key) DO UPDATE SET
                         value      = excluded.value,
                         confidence = excluded.confidence,
                         source     = excluded.source,
                         updated_at = excluded.updated_at,
-                        expires_at = excluded.expires_at
-                """, (namespace, key, value, confidence, source, now, now, expires_at))
+                        expires_at = excluded.expires_at,
+                        pinned     = excluded.pinned
+                """, (namespace, key, value, confidence, source, now, now, expires_at,
+                      int(pinned)))
         else:
             data = self._json_load()
             data.setdefault(namespace, {})[key] = {
                 "value": value,
                 "confidence": confidence,
                 "source": source,
+                "pinned": pinned,
                 "created_at": time.time(),
                 "updated_at": time.time(),
                 "expires_at": expires_at,
@@ -213,7 +288,8 @@ class MemoryDriver:
         now = time.time()
         with self._connect() as conn:
             row = conn.execute("""
-                SELECT namespace, key, value, confidence, source, created_at, updated_at, expires_at
+                SELECT namespace, key, value, confidence, source, pinned,
+                       created_at, updated_at, expires_at
                 FROM facts WHERE namespace=? AND key=?
                   AND (expires_at IS NULL OR expires_at > ?)
             """, (namespace, key, now)).fetchone()
@@ -221,9 +297,20 @@ class MemoryDriver:
             return None
         return Fact(
             namespace=row[0], key=row[1], value=row[2],
-            confidence=row[3], source=row[4],
-            created_at=row[5], updated_at=row[6], expires_at=row[7],
+            confidence=row[3], source=row[4], pinned=bool(row[5]),
+            created_at=row[6], updated_at=row[7], expires_at=row[8],
         )
+
+    def pin(self, namespace: str, key: str, *, pinned: bool = True) -> bool:
+        """Set or clear the pinned flag on a fact. Returns True if the fact exists."""
+        if self._backend != "sqlite":
+            return False
+        with self._connect() as conn:
+            cur = conn.execute(
+                "UPDATE facts SET pinned=? WHERE namespace=? AND key=?",
+                (int(pinned), namespace, key),
+            )
+        return cur.rowcount > 0
 
     def delete(self, namespace: str, key: str) -> bool:
         if self._backend == "sqlite":
@@ -248,7 +335,7 @@ class MemoryDriver:
         if self._backend == "sqlite":
             with self._connect() as conn:
                 base = """
-                    SELECT namespace, key, value, confidence, source, updated_at
+                    SELECT namespace, key, value, confidence, source, updated_at, pinned
                     FROM facts
                     WHERE (expires_at IS NULL OR expires_at > ?)
                       AND (LOWER(key) LIKE ? OR LOWER(value) LIKE ?)
@@ -257,12 +344,13 @@ class MemoryDriver:
                 if namespace:
                     base += " AND namespace=?"
                     params.append(namespace)
-                base += " ORDER BY confidence DESC, updated_at DESC"
+                base += " ORDER BY pinned DESC, confidence DESC, updated_at DESC"
                 rows = conn.execute(base, params).fetchall()
             return [
                 {
                     "namespace": r[0], "key": r[1], "value": r[2],
                     "confidence": r[3], "source": r[4], "updated_at": r[5],
+                    "pinned": bool(r[6]),
                 }
                 for r in rows
             ]
@@ -282,28 +370,89 @@ class MemoryDriver:
                             "confidence": meta.get("confidence", 1.0),
                             "source": meta.get("source", "user"),
                             "updated_at": meta.get("updated_at", 0),
+                            "pinned": meta.get("pinned", False),
                         })
             return results
 
-    def list_all(self, namespace: str | None = None) -> list[dict]:
-        """List all non-expired facts, newest first."""
+    def search_fts(self, query: str, limit: int = 10) -> list[dict]:
+        """Full-text search using FTS5 BM25 ranking. Falls back to LIKE on error."""
+        if self._backend != "sqlite":
+            return self.search(query)
+
+        fts_q = _fts5_query(query)
+        now = time.time()
+        try:
+            with self._connect() as conn:
+                rows = conn.execute("""
+                    SELECT f.namespace, f.key, f.value, f.confidence,
+                           f.source, f.updated_at, f.pinned
+                    FROM facts_fts
+                    JOIN facts f ON facts_fts.rowid = f.id
+                    WHERE facts_fts MATCH ?
+                      AND (f.expires_at IS NULL OR f.expires_at > ?)
+                    ORDER BY rank, f.confidence DESC
+                    LIMIT ?
+                """, (fts_q, now, limit)).fetchall()
+            return [
+                {
+                    "namespace": r[0], "key": r[1], "value": r[2],
+                    "confidence": r[3], "source": r[4], "updated_at": r[5],
+                    "pinned": bool(r[6]),
+                }
+                for r in rows
+            ]
+        except sqlite3.OperationalError:
+            # FTS5 not available or query error — fall back to LIKE search
+            return self.search(query)
+
+    def list_pinned(self, namespace: str | None = None) -> list[dict]:
+        """Return all pinned facts, ordered by confidence then recency."""
         now = time.time()
         if self._backend == "sqlite":
             with self._connect() as conn:
                 base = """
-                    SELECT namespace, key, value, confidence, source, updated_at
+                    SELECT namespace, key, value, confidence, source, updated_at, pinned
+                    FROM facts
+                    WHERE pinned=1
+                      AND (expires_at IS NULL OR expires_at > ?)
+                """
+                params: list[Any] = [now]
+                if namespace:
+                    base += " AND namespace=?"
+                    params.append(namespace)
+                base += " ORDER BY confidence DESC, updated_at DESC LIMIT 20"
+                rows = conn.execute(base, params).fetchall()
+            return [
+                {
+                    "namespace": r[0], "key": r[1], "value": r[2],
+                    "confidence": r[3], "source": r[4], "updated_at": r[5],
+                    "pinned": True,
+                }
+                for r in rows
+            ]
+        else:
+            return [f for f in self.list_all(namespace) if f.get("pinned")]
+
+    def list_all(self, namespace: str | None = None) -> list[dict]:
+        """List all non-expired facts, pinned first then newest."""
+        now = time.time()
+        if self._backend == "sqlite":
+            with self._connect() as conn:
+                base = """
+                    SELECT namespace, key, value, confidence, source, updated_at, pinned
                     FROM facts WHERE (expires_at IS NULL OR expires_at > ?)
                 """
                 params: list[Any] = [now]
                 if namespace:
                     base += " AND namespace=?"
                     params.append(namespace)
-                base += " ORDER BY updated_at DESC"
+                base += " ORDER BY pinned DESC, updated_at DESC"
                 rows = conn.execute(base, params).fetchall()
             return [
                 {
                     "namespace": r[0], "key": r[1], "value": r[2],
                     "confidence": r[3], "source": r[4], "updated_at": r[5],
+                    "pinned": bool(r[6]),
                 }
                 for r in rows
             ]
@@ -322,8 +471,9 @@ class MemoryDriver:
                         "confidence": meta.get("confidence", 1.0),
                         "source": meta.get("source", "user"),
                         "updated_at": meta.get("updated_at", 0),
+                        "pinned": meta.get("pinned", False),
                     })
-            return sorted(results, key=lambda x: x["updated_at"], reverse=True)
+            return sorted(results, key=lambda x: (not x["pinned"], -x["updated_at"]))
 
     def purge_expired(self) -> int:
         """Delete all expired facts. Returns count removed."""
@@ -409,7 +559,7 @@ class MemoryDriver:
     # ------------------------------------------------------------------ human-readable export
 
     def export_markdown(self) -> str:
-        """Generate a human-readable snapshot of all memory. No LLM required."""
+        """Generate a human-readable snapshot of all memory."""
         lines = ["# Macroa Memory Snapshot\n"]
 
         facts = self.list_all()
@@ -421,8 +571,12 @@ class MemoryDriver:
             for ns, entries in ns_groups.items():
                 lines.append(f"### {ns}\n")
                 for e in entries:
-                    conf = f" _(confidence: {e['confidence']:.0%})_" if e["confidence"] < 1.0 else ""
-                    lines.append(f"- **{e['key']}**: {e['value']}{conf}\n")
+                    pin_marker = " 📌" if e.get("pinned") else ""
+                    conf = (
+                        f" _(confidence: {e['confidence']:.0%})_"
+                        if e["confidence"] < 1.0 else ""
+                    )
+                    lines.append(f"- **{e['key']}**: {e['value']}{conf}{pin_marker}\n")
             lines.append("")
 
         episodes = self.get_episodes(limit=50)
