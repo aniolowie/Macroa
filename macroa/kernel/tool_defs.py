@@ -310,10 +310,13 @@ def _remember(key: str, value: str, drivers: DriverBundle) -> str:
 
 
 def _recall(query: str, drivers: DriverBundle) -> str:
-    results = drivers.memory.search(query)
+    results = drivers.memory.search_fts(query, limit=10)
     if not results:
         return "No memories found."
-    return "\n".join(f"- {r['key']}: {r['value']}" for r in results)
+    return "\n".join(
+        f"- {r['key']}: {r['value']}" + (f" (confidence: {r['confidence']:.2f})" if r.get("confidence", 1.0) < 1.0 else "")
+        for r in results
+    )
 
 
 def _web_search(query: str, drivers: DriverBundle) -> str:  # noqa: ARG001

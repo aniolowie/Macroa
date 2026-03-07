@@ -167,19 +167,37 @@ def run_stream(
     Each SSE event is `data: <chunk>\\n\\n`.
     A final `data: [DONE]\\n\\n` marks the end of the stream.
     """
+    import asyncio
+    import queue as _queue
+
     session_id = _resolve_session(session)
 
     async def _sse_generator() -> AsyncIterator[str]:
-        # Kernel.run is synchronous; for true streaming we'd need the streaming
-        # LLM path wired through chat_skill. For now we run sync and emit in one
-        # chunk — the architecture is ready for real streaming when chat_skill
-        # is updated to yield chunks.
-        result = kernel.run(input, session_id=session_id)
-        text = result.output or (result.error or "")
-        # Emit in 512-char chunks to demonstrate SSE framing
-        chunk_size = 512
-        for i in range(0, max(1, len(text)), chunk_size):
-            yield f"data: {text[i:i+chunk_size]}\n\n"
+        chunk_q: _queue.Queue[str | None] = _queue.Queue()
+
+        def _on_chunk(chunk: str) -> None:
+            # Collapse newlines so each SSE data line stays on one logical line
+            chunk_q.put(chunk.replace("\n", " "))
+
+        def _run_kernel() -> None:
+            try:
+                kernel.run(input, session_id=session_id, stream_callback=_on_chunk)
+            finally:
+                chunk_q.put(None)  # sentinel — signals end of stream
+
+        loop = asyncio.get_event_loop()
+        loop.run_in_executor(None, _run_kernel)
+
+        while True:
+            try:
+                chunk = chunk_q.get_nowait()
+            except _queue.Empty:
+                await asyncio.sleep(0.02)
+                continue
+            if chunk is None:
+                break
+            yield f"data: {chunk}\n\n"
+
         yield "data: [DONE]\n\n"
 
     return StreamingResponse(_sse_generator(), media_type="text/event-stream")
