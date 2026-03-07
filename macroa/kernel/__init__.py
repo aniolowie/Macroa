@@ -129,13 +129,27 @@ def _get_drivers() -> DriverBundle:
 
         ipc = IPCBus()
 
+        llm = LLMDriver(
+            api_key=settings.openrouter_api_key,
+            model_map=settings.model_map,
+            http_referer=settings.http_referer,
+            app_title=settings.app_title,
+        )
+
+        # Attach embedding store so new memory facts are auto-indexed for semantic search
+        try:
+            from macroa.memory.semantic import EmbeddingStore
+            emb_store = EmbeddingStore(
+                db_path=MACROA_DIR / "memory" / "embeddings.db",
+                llm=llm,
+            )
+            memory.set_embedding_store(emb_store)
+        except Exception as exc:
+            logger.debug("Embedding store init failed (semantic search unavailable): %s", exc)
+            emb_store = None
+
         _drivers = DriverBundle(
-            llm=LLMDriver(
-                api_key=settings.openrouter_api_key,
-                model_map=settings.model_map,
-                http_referer=settings.http_referer,
-                app_title=settings.app_title,
-            ),
+            llm=llm,
             shell=ShellDriver(),
             fs=FSDriver(),
             memory=memory,

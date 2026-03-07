@@ -62,6 +62,8 @@ def _fts5_query(text: str) -> str:
 class MemoryDriver:
     def __init__(self, backend: str = "sqlite", db_path: Path | None = None) -> None:
         self._backend = backend
+        # Optional embedding store — set via .set_embedding_store() after construction
+        self._embedding_store = None
         if backend == "sqlite":
             self._db_path = db_path or (Path.home() / ".macroa" / "memory.db")
             self._db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -69,6 +71,10 @@ class MemoryDriver:
         else:
             self._json_path = db_path or (Path.home() / ".macroa" / "memory.json")
             self._json_path.parent.mkdir(parents=True, exist_ok=True)
+
+    def set_embedding_store(self, store) -> None:
+        """Attach an EmbeddingStore for async vector indexing on fact writes."""
+        self._embedding_store = store
 
     # ------------------------------------------------------------------ init / migration
 
@@ -259,6 +265,13 @@ class MemoryDriver:
                 "expires_at": expires_at,
             }
             self._json_save(data)
+
+        # Queue for background vector embedding (non-blocking, best-effort)
+        if self._embedding_store is not None:
+            try:
+                self._embedding_store.queue_embed(namespace, key, f"{key}: {value}")
+            except Exception:
+                pass
 
     def get(self, namespace: str, key: str) -> str | None:
         """Retrieve a fact value by exact key. Returns None if missing or expired."""
