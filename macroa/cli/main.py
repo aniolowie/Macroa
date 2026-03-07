@@ -298,7 +298,7 @@ def _repl(debug: bool, session_name: str | None) -> None:
             print_help()
             continue
 
-        _execute(raw, session_id=session_id, debug=debug_mode, confirm_callback=confirm_callback)
+        _execute(raw, session_id=session_id, debug=debug_mode, confirm_callback=confirm_callback, stream=True)
 
 
 # ------------------------------------------------------------------ shared
@@ -309,10 +309,30 @@ def _execute(
     session_id: str,
     debug: bool,
     confirm_callback: Callable[[str, str], bool] | None = None,
+    stream: bool = False,
 ) -> None:
+    stream_callback: Callable[[str], None] | None = None
+    was_streamed = False
+
+    if stream:
+        _streamed: list[str] = []
+
+        def stream_callback(chunk: str) -> None:  # noqa: F811
+            nonlocal was_streamed
+            was_streamed = True
+            console.print(chunk, end="", highlight=False)
+            _streamed.append(chunk)
+
     try:
-        result = kernel.run(raw, session_id=session_id, confirm_callback=confirm_callback)
-        render_result(result, debug=debug)
+        result = kernel.run(
+            raw,
+            session_id=session_id,
+            confirm_callback=confirm_callback,
+            stream_callback=stream_callback,
+        )
+        if was_streamed:
+            console.print()  # newline after streamed output
+        render_result(result, debug=debug, skip_output=was_streamed)
         if not result.success:
             sys.exit(1)
     except OSError as exc:

@@ -231,6 +231,7 @@ def run(
     raw_input: str,
     session_id: str | None = None,
     confirm_callback: ConfirmCallback | None = None,
+    stream_callback: Callable[[str], None] | None = None,
 ) -> SkillResult:
     """
     Main kernel entry point.
@@ -251,6 +252,9 @@ def run(
 
     t_start = time.monotonic()
     drivers = _get_drivers()
+    if stream_callback is not None:
+        import dataclasses
+        drivers = dataclasses.replace(drivers, stream_callback=stream_callback)
     registry = _get_registry()
     audit = _get_audit()
     ctx_manager = _get_or_create_session(session_id)

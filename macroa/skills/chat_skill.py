@@ -62,11 +62,16 @@ def _build_messages(
 
 def run(intent: Intent, context: Context, drivers: DriverBundle) -> SkillResult:
     messages = _build_messages(intent, context, drivers)
+    cb = drivers.stream_callback
     try:
-        response = drivers.llm.complete(
-            messages=messages,
-            tier=intent.model_tier,
-        )
+        if cb is not None:
+            chunks: list[str] = []
+            for chunk in drivers.llm.stream(messages=messages, tier=intent.model_tier):
+                cb(chunk)
+                chunks.append(chunk)
+            response = "".join(chunks)
+        else:
+            response = drivers.llm.complete(messages=messages, tier=intent.model_tier)
         return SkillResult(
             output=response,
             success=True,

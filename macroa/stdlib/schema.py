@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import time
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any, Literal
@@ -85,3 +86,6 @@ class DriverBundle:
     vfs: Any = None     # VFS instance — None in unit tests, always set in production
     budget: Any = None  # BudgetManager — None in unit tests, always set in production
     ipc: Any = None     # IPCBus — None in unit tests, always set in production
+    # Per-request streaming callback — set by the REPL, None for single-shot runs.
+    # chat_skill checks this and yields tokens via llm.stream() when set.
+    stream_callback: Callable[[str], None] | None = None

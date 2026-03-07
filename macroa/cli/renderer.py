@@ -50,20 +50,20 @@ _TIER_LABEL = {
 
 # ── result rendering ──────────────────────────────────────────────────────────
 
-def render_result(result: SkillResult, *, debug: bool = False) -> None:
+def render_result(result: SkillResult, *, debug: bool = False, skip_output: bool = False) -> None:
     if not result.success and result.error:
         console.print(f"[error]Error:[/error] {result.error}")
         return
 
-    output = result.output.strip()
-    if not output:
-        console.print("[meta](no output)[/meta]")
-        return
-
-    if _looks_like_markdown(output):
-        console.print(Markdown(output))
-    else:
-        console.print(output)
+    if not skip_output:
+        output = result.output.strip()
+        if not output:
+            console.print("[meta](no output)[/meta]")
+            return
+        if _looks_like_markdown(output):
+            console.print(Markdown(output))
+        else:
+            console.print(output)
 
     if debug:
         tier_style = _TIER_STYLE.get(result.model_tier, "meta")
