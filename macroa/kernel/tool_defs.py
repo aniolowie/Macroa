@@ -204,6 +204,43 @@ TOOL_SCHEMAS: list[dict] = [
     {
         "type": "function",
         "function": {
+            "name": "spawn_agent",
+            "description": (
+                "Spawn a named subagent to work on an objective in parallel with the current task. "
+                "The subagent has full tool access (web_search, fetch_url, run_command, etc.). "
+                "Returns the subagent's output when it completes. "
+                "Use this to delegate independent subtasks — e.g. spawn a 'researcher' to gather facts "
+                "while you start writing, or a 'tester' to run tests while you fix code. "
+                "Limit: 4 subagents per turn."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Short identifier for this subagent (e.g. 'researcher', 'writer')",
+                    },
+                    "objective": {
+                        "type": "string",
+                        "description": "Full natural-language task for the subagent to complete",
+                    },
+                    "tier": {
+                        "type": "string",
+                        "enum": ["nano", "haiku", "sonnet", "opus"],
+                        "description": "Model tier (default: sonnet). Use haiku for simple tasks.",
+                    },
+                    "persona": {
+                        "type": "string",
+                        "description": "Optional role hint (e.g. 'You are an expert Python developer')",
+                    },
+                },
+                "required": ["name", "objective"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "fetch_url",
             "description": (
                 "Fetch the text content of a web page (HTML stripped). "
@@ -250,6 +287,12 @@ def execute_tool(
             return _web_search(args["query"], drivers)
         if name == "fetch_url":
             return _fetch_url(args["url"], drivers)
+        if name == "spawn_agent":
+            return _spawn_agent(
+                args["name"], args["objective"],
+                args.get("tier", "sonnet"), args.get("persona", ""),
+                drivers,
+            )
         if name == "ipc_emit":
             return _ipc_emit(args["channel"], args["message"], drivers)
         if name == "ipc_read":
@@ -374,6 +417,29 @@ def _ipc_list_channels(drivers: DriverBundle) -> str:
     for ch in channels:
         lines.append(f"  {ch['channel']}: {ch['pending']} pending")
     return "\n".join(lines)
+
+
+def _spawn_agent(
+    name: str, objective: str, tier_str: str, persona: str, drivers: DriverBundle
+) -> str:
+    """Spawn a single subagent synchronously and return its output."""
+    from macroa.kernel.multi_agent import AgentTask, MultiAgentCoordinator
+    from macroa.stdlib.schema import ModelTier
+
+    try:
+        tier = ModelTier(tier_str.lower())
+    except ValueError:
+        tier = ModelTier.SONNET
+
+    # Use a deterministic ephemeral session so subagent doesn't pollute parent
+    import uuid
+    session_id = f"subagent-{uuid.uuid4().hex[:12]}"
+    task = AgentTask(name=name, objective=objective, model_tier=tier, persona=persona)
+    coordinator = MultiAgentCoordinator(drivers=drivers, session_id=session_id)
+    result = coordinator.run([task], original_request=objective)
+    if result.success:
+        return f"[subagent '{name}' completed]\n{result.output}"
+    return f"[subagent '{name}' failed: {result.error}]"
 
 
 def _fetch_url(url: str, drivers: DriverBundle) -> str:

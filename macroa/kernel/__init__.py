@@ -571,6 +571,28 @@ def watch_enable(observer_id: str, enabled: bool = True) -> bool:
     return _get_watchdog().enable(observer_id, enabled)
 
 
+def run_agents(
+    tasks: list,
+    original_request: str,
+    session_id: str | None = None,
+) -> SkillResult:
+    """Run multiple AgentTask objects in parallel, respecting dependencies.
+
+    Args:
+        tasks:            list of AgentTask instances.
+        original_request: the top-level user request (used for synthesis prompt).
+        session_id:       parent session ID; subagents derive ephemeral sessions from it.
+
+    Returns:
+        SkillResult with merged output and metadata.
+    """
+    from macroa.kernel.multi_agent import MultiAgentCoordinator
+    drivers = _get_drivers()
+    sid = session_id or get_session_id()
+    coordinator = MultiAgentCoordinator(drivers=drivers, session_id=sid)
+    return coordinator.run(tasks=tasks, original_request=original_request)
+
+
 def get_audit_stats() -> dict:
     """Return usage stats from the audit log."""
     return _get_audit().stats()
