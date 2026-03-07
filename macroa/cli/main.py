@@ -397,6 +397,66 @@ def tools_list() -> None:
     console.print(table)
 
 
+@cli.group()
+def daemon() -> None:
+    """Manage the Macroa background daemon."""
+
+
+@daemon.command("start")
+@click.option("--port", default=8000, show_default=True, help="Web API port.")
+@click.option("--no-web", is_flag=True, default=False, help="Disable the HTTP API.")
+def daemon_start(port: int, no_web: bool) -> None:
+    """Start the background daemon (scheduler + watchdog + optional web API)."""
+    from macroa.kernel.daemon import is_running, start as daemon_start_fn
+    if is_running():
+        from macroa.kernel.daemon import pid_file
+        pid = pid_file().read_text().strip()
+        render_info(f"Daemon already running (PID {pid}).")
+        return
+    try:
+        pid = daemon_start_fn(port=port, web=not no_web)
+        web_note = f"  Web API: http://127.0.0.1:{port}" if not no_web else "  Web API: disabled"
+        render_info(f"Daemon started (PID {pid}).{web_note}")
+    except RuntimeError as exc:
+        render_error(str(exc))
+        sys.exit(1)
+
+
+@daemon.command("stop")
+def daemon_stop() -> None:
+    """Stop the background daemon."""
+    from macroa.kernel.daemon import stop as daemon_stop_fn
+    if daemon_stop_fn():
+        render_info("Daemon stopped.")
+    else:
+        render_info("No daemon running.")
+
+
+@daemon.command("status")
+def daemon_status() -> None:
+    """Show daemon status and stats."""
+    from macroa.kernel.daemon import is_running, read_status
+    if not is_running():
+        console.print("[dim]Daemon:[/dim] [red]offline[/red]")
+        return
+    st = read_status()
+    pid = st.get("pid", "?")
+    tasks = st.get("scheduler_tasks", "?")
+    web_port = st.get("web_port")
+    started = st.get("started_at")
+    uptime_str = ""
+    if started:
+        secs = int(time.time() - started)
+        h, rem = divmod(secs, 3600)
+        m, s = divmod(rem, 60)
+        uptime_str = f"  uptime {h}h {m}m {s}s" if h else f"  uptime {m}m {s}s"
+    web_str = f"  web: http://127.0.0.1:{web_port}" if web_port else "  web: disabled"
+    console.print(
+        f"[dim]Daemon:[/dim] [green]running[/green]  "
+        f"PID {pid}  tasks: {tasks}{web_str}{uptime_str}"
+    )
+
+
 @cli.command()
 def setup() -> None:
     """Run the interactive setup wizard (configure API key, name, models)."""

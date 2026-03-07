@@ -110,6 +110,8 @@ def print_help() -> None:
             "  [prompt]macroa schedule add[/prompt]       recurring tasks\n"
             "  [prompt]macroa tools list[/prompt]         installed tools\n"
             "  [prompt]macroa serve[/prompt]              web dashboard\n"
+            "  [prompt]macroa daemon start[/prompt]       background daemon\n"
+            "  [prompt]macroa daemon status[/prompt]      daemon health check\n"
             "  [prompt]macroa setup[/prompt]              reconfigure\n\n"
             "[bold]Examples:[/bold]\n"
             "  remember my server IP is 192.168.1.100\n"
@@ -133,6 +135,8 @@ def print_banner() -> None:
 
     # Left column: identity block
     left = Text()
+    daemon_line = _get_daemon_status()
+
     left.append("\n")
     left.append(" ◈ ", style="bold cyan")
     left.append("Macroa  ", style="bold white")
@@ -143,6 +147,7 @@ def print_banner() -> None:
     left.append("\n\n")
     left.append(f" Hello, {name}\n", style="bold")
     left.append(f" {audit_line}\n", style="dim")
+    left.append(f" {daemon_line}\n", style="dim")
 
     # Right column: model stack
     right = model_table
@@ -246,6 +251,20 @@ def _build_model_table() -> Table:
 
 
 # ── internal ──────────────────────────────────────────────────────────────────
+
+def _get_daemon_status() -> str:
+    try:
+        from macroa.kernel.daemon import is_running, read_status
+        if not is_running():
+            return "daemon: offline  (macroa daemon start)"
+        st = read_status()
+        tasks = st.get("scheduler_tasks", "?")
+        web_port = st.get("web_port")
+        web_str = f"  web: :{web_port}" if web_port else ""
+        return f"daemon: running  tasks: {tasks}{web_str}"
+    except Exception:
+        return ""
+
 
 def _looks_like_markdown(text: str) -> bool:
     markers = ("# ", "## ", "**", "- ", "* ", "```", "> ", "1. ")
