@@ -67,6 +67,10 @@ _audit: AuditLog | None = None
 _session_store: SessionStore | None = None
 _scheduler: Scheduler | None = None
 _watchdog: WatchdogManager | None = None
+_extractor: object | None = None  # macroa.memory.extractor.MemoryExtractor
+
+# Skills that produce conversational output worth extracting user facts from
+_EXTRACTABLE_SKILLS = frozenset({"chat_skill", "agent_skill", "research_skill"})
 
 
 def _get_drivers() -> DriverBundle:
@@ -179,6 +183,16 @@ def _get_scheduler() -> Scheduler:
         )
         _scheduler.start()
     return _scheduler
+
+
+def _get_extractor():  # type: ignore[return]
+    """Lazy-init the MemoryExtractor singleton."""
+    global _extractor
+    if _extractor is None:
+        from macroa.memory.extractor import MemoryExtractor
+        drivers = _get_drivers()
+        _extractor = MemoryExtractor(llm=drivers.llm, memory=drivers.memory)
+    return _extractor
 
 
 def _get_watchdog() -> WatchdogManager:
@@ -348,6 +362,14 @@ def run(
         },
         session_id=session_id,
     ))
+
+    # Fire-and-forget memory extraction for conversational turns.
+    # Runs in a daemon thread — never blocks the response.
+    if result.success and intent.skill_name in _EXTRACTABLE_SKILLS and result.output:
+        try:
+            _get_extractor().extract_async(raw_input, result.output)
+        except Exception:
+            pass  # extraction is always best-effort
 
     return result
 

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from macroa.drivers.llm_driver import LLMDriverError
 from macroa.kernel.identity import build_system_prompt
+from macroa.memory.formatter import format_for_prompt
+from macroa.memory.retriever import retrieve
 from macroa.stdlib.schema import (
     Context,
     DriverBundle,
@@ -24,20 +26,23 @@ MANIFEST = SkillManifest(
     deterministic=False,
 )
 
+
 def _build_system(intent: Intent, drivers: DriverBundle) -> str:
-    """Build system prompt: identity files + relevant memory facts."""
+    """Build system prompt: identity + contextually retrieved memory."""
     base = build_system_prompt()
     try:
-        results = drivers.memory.search(intent.raw, namespace=None)
-        if results:
-            facts = "\n".join(f"- {r['key']}: {r['value']}" for r in results[:10])
-            base = base + f"\n\nKnown facts about the user:\n{facts}"
+        facts = retrieve(intent.raw, drivers.memory)
+        memory_block = format_for_prompt(facts)
+        if memory_block:
+            base = base + "\n\n" + memory_block
     except Exception:
         pass
     return base
 
 
-def _build_messages(intent: Intent, context: Context, drivers: DriverBundle) -> list[dict[str, str]]:
+def _build_messages(
+    intent: Intent, context: Context, drivers: DriverBundle
+) -> list[dict[str, str]]:
     messages: list[dict[str, str]] = [{"role": "system", "content": _build_system(intent, drivers)}]
     for entry in context.entries:
         if entry.role in ("user", "assistant"):
