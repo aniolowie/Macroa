@@ -1,7 +1,12 @@
 """macroa.memory — contextual memory pipeline (extract → retrieve → format)."""
 
+from macroa.memory.compactor import ContextCompactor
 from macroa.memory.extractor import MemoryExtractor
 from macroa.memory.formatter import format_for_prompt
 from macroa.memory.retriever import retrieve
+from macroa.memory.semantic import EmbeddingStore, SemanticRetriever
 
-__all__ = ["MemoryExtractor", "format_for_prompt", "retrieve"]
+__all__ = [
+    "ContextCompactor", "MemoryExtractor", "format_for_prompt", "retrieve",
+    "EmbeddingStore", "SemanticRetriever",
+]

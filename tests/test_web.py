@@ -27,7 +27,11 @@ def mock_kernel(monkeypatch):
         model_tier=ModelTier.HAIKU,
         metadata={"skill": "chat_skill"},
     )
-    monkeypatch.setattr("macroa.kernel.run", lambda inp, session_id=None: result)
+    def _mock_run(inp, session_id=None, stream_callback=None):
+        if stream_callback:
+            stream_callback(result.output)
+        return result
+    monkeypatch.setattr("macroa.kernel.run", _mock_run)
     monkeypatch.setattr("macroa.kernel.get_session_id", lambda: "test-uuid-1234")
     monkeypatch.setattr("macroa.kernel.resolve_session", lambda name: f"uuid-for-{name}")
     monkeypatch.setattr("macroa.kernel.list_sessions", lambda: [])

@@ -34,11 +34,9 @@ class LLMDriver:
             base_url="https://openrouter.ai/api/v1",
             default_headers=extra_headers if extra_headers else None,
         )
-
-    # Token usage from the most recent call — read by BudgetManager after each round.
-    # Not thread-safe across concurrent sessions; acceptable since each session
-    # runs in a single thread and reads usage immediately after its own call.
-    last_usage: dict = {}
+        # Token usage from the most recent call — instance-level so concurrent
+        # agents each maintain their own usage without overwriting each other.
+        self.last_usage: dict = {}
 
     def complete(
         self,
@@ -165,3 +163,32 @@ class LLMDriver:
             raise LLMDriverError(f"OpenRouter stream error: {exc}") from exc
         except Exception as exc:
             raise LLMDriverError(f"Unexpected stream error: {exc}") from exc
+
+    def embed(
+        self,
+        texts: list[str],
+        model: str = "openai/text-embedding-3-small",
+    ) -> list[list[float]]:
+        """Generate text embeddings via the OpenRouter Embeddings API.
+
+        Args:
+            texts: List of strings to embed (max ~100 per call).
+            model: Embedding model ID (default: text-embedding-3-small, 1536 dims).
+
+        Returns:
+            List of float vectors, one per input text.
+
+        Raises:
+            LLMDriverError on API failure.
+        """
+        if not texts:
+            return []
+        try:
+            response = self._client.embeddings.create(model=model, input=texts)
+            # Sort by index to preserve input order
+            sorted_data = sorted(response.data, key=lambda d: d.index)
+            return [item.embedding for item in sorted_data]
+        except APIError as exc:
+            raise LLMDriverError(f"OpenRouter embeddings error: {exc}") from exc
+        except Exception as exc:
+            raise LLMDriverError(f"Unexpected embeddings error: {exc}") from exc

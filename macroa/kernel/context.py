@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from collections import deque
+from collections.abc import Callable
 
 from macroa.stdlib.schema import Context, ContextEntry, SkillResult
 
@@ -13,6 +14,9 @@ class ContextManager:
         self.session_id = session_id or str(uuid.uuid4())
         # window_size turns × 2 entries (user + assistant) each
         self._buffer: deque[ContextEntry] = deque(maxlen=window_size * 2)
+        # Optional hook: called with each evicted entry before it is dropped.
+        # Used by ContextCompactor to summarise evicted turns into episodic memory.
+        self.on_evict: Callable[[ContextEntry], None] | None = None
 
     # ------------------------------------------------------------------ read
 
@@ -46,17 +50,22 @@ class ContextManager:
 
     def _add(self, entry: ContextEntry) -> None:
         if len(self._buffer) == self._buffer.maxlen:
-            self._evict_oldest_unpinned()
+            evicted = self._evict_oldest_unpinned()
+            if evicted is not None and self.on_evict is not None:
+                try:
+                    self.on_evict(evicted)
+                except Exception:
+                    pass  # compaction is best-effort — never block a turn
         self._buffer.append(entry)
 
-    def _evict_oldest_unpinned(self) -> None:
-        """Drop the oldest non-pinned entry to make room."""
+    def _evict_oldest_unpinned(self) -> ContextEntry | None:
+        """Drop the oldest non-pinned entry and return it (or None if all pinned)."""
         for i, e in enumerate(self._buffer):
             if not e.pinned:
-                # deque doesn't support O(1) arbitrary deletion — rebuild
                 entries = list(self._buffer)
                 del entries[i]
                 self._buffer.clear()
                 self._buffer.extend(entries)
-                return
+                return e
         # all entries pinned — let the deque evict from the left naturally
+        return None

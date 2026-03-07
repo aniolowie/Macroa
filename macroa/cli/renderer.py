@@ -50,28 +50,32 @@ _TIER_LABEL = {
 
 # ── result rendering ──────────────────────────────────────────────────────────
 
-def render_result(result: SkillResult, *, debug: bool = False) -> None:
+def render_result(result: SkillResult, *, debug: bool = False, skip_output: bool = False) -> None:
     if not result.success and result.error:
         console.print(f"[error]Error:[/error] {result.error}")
         return
 
-    output = result.output.strip()
-    if not output:
-        console.print("[meta](no output)[/meta]")
-        return
-
-    if _looks_like_markdown(output):
-        console.print(Markdown(output))
-    else:
-        console.print(output)
+    if not skip_output:
+        output = result.output.strip()
+        if not output:
+            console.print("[meta](no output)[/meta]")
+            return
+        if _looks_like_markdown(output):
+            console.print(Markdown(output))
+        else:
+            console.print(output)
 
     if debug:
         tier_style = _TIER_STYLE.get(result.model_tier, "meta")
         tier_label = _TIER_LABEL.get(result.model_tier, result.model_tier.value)
         skill = result.metadata.get("skill", "—")
+        tokens = result.metadata.get("prompt_tokens", 0) + result.metadata.get("completion_tokens", 0)
+        cost = result.metadata.get("cost_usd", 0.0)
+        cost_str = f"  ${cost:.5f}" if cost else ""
+        token_str = f"  {tokens}tok" if tokens else ""
         console.print(
             f"[meta]  skill={skill}  tier={tier_label}  "
-            f"turn={result.turn_id[:8]}[/meta]",
+            f"turn={result.turn_id[:8]}{token_str}{cost_str}[/meta]",
             style=tier_style,
         )
 
@@ -106,6 +110,8 @@ def print_help() -> None:
             "  [prompt]macroa schedule add[/prompt]       recurring tasks\n"
             "  [prompt]macroa tools list[/prompt]         installed tools\n"
             "  [prompt]macroa serve[/prompt]              web dashboard\n"
+            "  [prompt]macroa daemon start[/prompt]       background daemon\n"
+            "  [prompt]macroa daemon status[/prompt]      daemon health check\n"
             "  [prompt]macroa setup[/prompt]              reconfigure\n\n"
             "[bold]Examples:[/bold]\n"
             "  remember my server IP is 192.168.1.100\n"
@@ -129,6 +135,8 @@ def print_banner() -> None:
 
     # Left column: identity block
     left = Text()
+    daemon_line = _get_daemon_status()
+
     left.append("\n")
     left.append(" ◈ ", style="bold cyan")
     left.append("Macroa  ", style="bold white")
@@ -139,6 +147,7 @@ def print_banner() -> None:
     left.append("\n\n")
     left.append(f" Hello, {name}\n", style="bold")
     left.append(f" {audit_line}\n", style="dim")
+    left.append(f" {daemon_line}\n", style="dim")
 
     # Right column: model stack
     right = model_table
@@ -242,6 +251,20 @@ def _build_model_table() -> Table:
 
 
 # ── internal ──────────────────────────────────────────────────────────────────
+
+def _get_daemon_status() -> str:
+    try:
+        from macroa.kernel.daemon import is_running, read_status
+        if not is_running():
+            return "daemon: offline  (macroa daemon start)"
+        st = read_status()
+        tasks = st.get("scheduler_tasks", "?")
+        web_port = st.get("web_port")
+        web_str = f"  web: :{web_port}" if web_port else ""
+        return f"daemon: running  tasks: {tasks}{web_str}"
+    except Exception:
+        return ""
+
 
 def _looks_like_markdown(text: str) -> bool:
     markers = ("# ", "## ", "**", "- ", "* ", "```", "> ", "1. ")

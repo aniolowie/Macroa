@@ -7,8 +7,10 @@ import logging
 from collections.abc import Callable
 
 from macroa.drivers.llm_driver import LLMDriverError
+from macroa.kernel.clock import now_context
 from macroa.kernel.identity import build_system_prompt
 from macroa.kernel.tool_defs import TOOL_SCHEMAS, execute_tool
+from macroa.memory.retriever import retrieve
 from macroa.stdlib.schema import Context, DriverBundle, Intent, SkillResult
 
 logger = logging.getLogger(__name__)
@@ -38,7 +40,37 @@ class AgentLoop:
         self._approved = session_approved
 
     def run(self, intent: Intent, context: Context) -> SkillResult:
-        system_prompt = build_system_prompt()
+        base_prompt = build_system_prompt()
+
+        # Inject current time
+        time_ctx = now_context(self._drivers.memory)
+
+        # Inject relevant memory facts
+        memory_lines: list[str] = []
+        try:
+            facts = retrieve(intent.raw, self._drivers.memory)
+            if facts:
+                memory_lines.append("\n## Relevant Memory\n")
+                memory_lines.extend(f"- {f['key']}: {f['value']}" for f in facts)
+        except Exception:
+            pass  # memory retrieval is best-effort — never block agent execution
+
+        # Inject compacted episodes
+        episode_lines: list[str] = []
+        try:
+            episodes = self._drivers.memory.get_episodes(context.session_id, limit=4)
+            if episodes:
+                episode_lines.append("\n## Earlier in this conversation (compacted)\n")
+                episode_lines.extend(f"- {ep.summary}" for ep in episodes)
+        except Exception:
+            pass  # episode retrieval is best-effort — never block agent execution
+
+        system_prompt = "\n".join(filter(None, [
+            time_ctx,
+            base_prompt,
+            "".join(memory_lines),
+            "".join(episode_lines),
+        ]))
         messages: list[dict] = [{"role": "system", "content": system_prompt}]
 
         for entry in context.entries:

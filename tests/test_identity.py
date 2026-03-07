@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from macroa.kernel.identity import _FALLBACK, build_system_prompt
+from macroa.kernel.identity import build_system_prompt
 from macroa.stdlib.schema import DriverBundle, Intent, ModelTier
 
 # ------------------------------------------------------------------ identity.build_system_prompt
@@ -38,7 +38,8 @@ def test_bootstrap_custom_file(tmp_path: Path):
     (idir / "BOOTSTRAP.md").write_text("Custom bootstrap content.", encoding="utf-8")
     with patch("macroa.kernel.identity._IDENTITY_DIR", idir):
         result = build_system_prompt()
-    assert result == "Custom bootstrap content."
+    # Bootstrap content is always augmented with capabilities + safety sections
+    assert result.startswith("Custom bootstrap content.")
 
 
 def test_identity_files_loaded(tmp_path: Path):
@@ -61,14 +62,15 @@ def test_identity_only_required_file(tmp_path: Path):
     assert "TestAgent" in result
 
 
-def test_empty_identity_file_returns_fallback(tmp_path: Path):
+def test_empty_identity_file_has_structure(tmp_path: Path):
     idir = _identity_dir(tmp_path)
     (idir / "IDENTITY.md").write_text("", encoding="utf-8")
     with patch("macroa.kernel.identity._IDENTITY_DIR", idir):
         result = build_system_prompt()
-    # Fallback text is present; capabilities section is always appended
-    assert _FALLBACK in result
-    assert "Macroa Capabilities" in result
+    # Even with empty IDENTITY.md: runtime, capabilities, and safety sections always present
+    assert "Runtime" in result
+    assert "Your Capabilities" in result
+    assert "Safety" in result
 
 
 # ------------------------------------------------------------------ chat_skill memory injection
@@ -88,6 +90,7 @@ def _make_intent(raw: str) -> Intent:
 def _make_drivers(memory_results: list[dict]) -> DriverBundle:
     memory = MagicMock()
     memory.search.return_value = memory_results
+    memory.get_episodes.return_value = []   # no compacted episodes by default
     llm = MagicMock()
     llm.complete.return_value = "Hello!"
     return DriverBundle(
@@ -133,6 +136,7 @@ def test_chat_skill_memory_error_ignored():
 
     memory = MagicMock()
     memory.search.side_effect = RuntimeError("DB gone")
+    memory.get_episodes.return_value = []
     drivers = DriverBundle(
         llm=MagicMock(), shell=MagicMock(), fs=MagicMock(), memory=memory, network=MagicMock()
     )

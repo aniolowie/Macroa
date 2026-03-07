@@ -65,6 +65,22 @@ def _register_research_feed() -> None:
         bus.subscribe(et, _on_research_event)
 
 
+def _on_reminder_fired(event: Event) -> None:  # type: ignore[name-defined]  # noqa: F821
+    """Print a visible banner when a scheduled reminder fires."""
+    msg = event.payload.get("message", "")
+    from datetime import datetime
+    now_str = datetime.now().strftime("%H:%M")
+    console.print(
+        f"\n[bold yellow]⏰ Reminder [{now_str}][/bold yellow]  {msg}\n",
+        highlight=False,
+    )
+
+
+def _register_reminder_notifications() -> None:
+    from macroa.kernel.events import Events, bus
+    bus.subscribe(Events.REMINDER_FIRED, _on_reminder_fired)
+
+
 def _make_confirm_callback() -> Callable[[str, str], bool]:
     """Return a Rich-powered sudo confirm callback with a 30 s SIGALRM timeout."""
     def confirm(command: str, reason: str) -> bool:
@@ -243,6 +259,7 @@ def schedule_delete(task_id: str) -> None:
 
 def _repl(debug: bool, session_name: str | None) -> None:
     _register_research_feed()
+    _register_reminder_notifications()
     print_banner()
     session_id = _resolve_session(session_name)
     confirm_callback = _make_confirm_callback()
@@ -281,7 +298,7 @@ def _repl(debug: bool, session_name: str | None) -> None:
             print_help()
             continue
 
-        _execute(raw, session_id=session_id, debug=debug_mode, confirm_callback=confirm_callback)
+        _execute(raw, session_id=session_id, debug=debug_mode, confirm_callback=confirm_callback, stream=True)
 
 
 # ------------------------------------------------------------------ shared
@@ -292,10 +309,30 @@ def _execute(
     session_id: str,
     debug: bool,
     confirm_callback: Callable[[str, str], bool] | None = None,
+    stream: bool = False,
 ) -> None:
+    stream_callback: Callable[[str], None] | None = None
+    was_streamed = False
+
+    if stream:
+        _streamed: list[str] = []
+
+        def stream_callback(chunk: str) -> None:  # noqa: F811
+            nonlocal was_streamed
+            was_streamed = True
+            console.print(chunk, end="", highlight=False)
+            _streamed.append(chunk)
+
     try:
-        result = kernel.run(raw, session_id=session_id, confirm_callback=confirm_callback)
-        render_result(result, debug=debug)
+        result = kernel.run(
+            raw,
+            session_id=session_id,
+            confirm_callback=confirm_callback,
+            stream_callback=stream_callback,
+        )
+        if was_streamed:
+            console.print()  # newline after streamed output
+        render_result(result, debug=debug, skip_output=was_streamed)
         if not result.success:
             sys.exit(1)
     except OSError as exc:
@@ -358,6 +395,148 @@ def tools_list() -> None:
     for t in installed:
         table.add_row(t["name"], t["description"] or "—", t["path"])
     console.print(table)
+
+
+@cli.group()
+def daemon() -> None:
+    """Manage the Macroa background daemon."""
+
+
+@daemon.command("start")
+@click.option("--port", default=8000, show_default=True, help="Web API port.")
+@click.option("--no-web", is_flag=True, default=False, help="Disable the HTTP API.")
+def daemon_start(port: int, no_web: bool) -> None:
+    """Start the background daemon (scheduler + watchdog + optional web API)."""
+    from macroa.kernel.daemon import is_running
+    from macroa.kernel.daemon import start as daemon_start_fn
+    if is_running():
+        from macroa.kernel.daemon import pid_file
+        pid = pid_file().read_text().strip()
+        render_info(f"Daemon already running (PID {pid}).")
+        return
+    try:
+        pid = daemon_start_fn(port=port, web=not no_web)
+        web_note = f"  Web API: http://127.0.0.1:{port}" if not no_web else "  Web API: disabled"
+        render_info(f"Daemon started (PID {pid}).{web_note}")
+    except RuntimeError as exc:
+        render_error(str(exc))
+        sys.exit(1)
+
+
+@daemon.command("stop")
+def daemon_stop() -> None:
+    """Stop the background daemon."""
+    from macroa.kernel.daemon import stop as daemon_stop_fn
+    if daemon_stop_fn():
+        render_info("Daemon stopped.")
+    else:
+        render_info("No daemon running.")
+
+
+@daemon.command("status")
+def daemon_status() -> None:
+    """Show daemon status and stats."""
+    from macroa.kernel.daemon import is_running, read_status
+    if not is_running():
+        console.print("[dim]Daemon:[/dim] [red]offline[/red]")
+        return
+    st = read_status()
+    pid = st.get("pid", "?")
+    tasks = st.get("scheduler_tasks", "?")
+    web_port = st.get("web_port")
+    started = st.get("started_at")
+    uptime_str = ""
+    if started:
+        secs = int(time.time() - started)
+        h, rem = divmod(secs, 3600)
+        m, s = divmod(rem, 60)
+        uptime_str = f"  uptime {h}h {m}m {s}s" if h else f"  uptime {m}m {s}s"
+    web_str = f"  web: http://127.0.0.1:{web_port}" if web_port else "  web: disabled"
+    console.print(
+        f"[dim]Daemon:[/dim] [green]running[/green]  "
+        f"PID {pid}  tasks: {tasks}{web_str}{uptime_str}"
+    )
+
+
+@cli.command()
+@click.option("--token", default=None, envvar="MACROA_TELEGRAM_TOKEN",
+              help="Telegram bot token (or set MACROA_TELEGRAM_TOKEN).")
+@click.option("--allow", multiple=True, metavar="USER_ID",
+              help="Restrict to these Telegram user IDs (repeat for multiple).")
+def telegram(token: str | None, allow: tuple[str, ...]) -> None:
+    """Start the Telegram bot adapter (blocks until Ctrl+C)."""
+    if not token:
+        render_error(
+            "No token provided. Pass --token or set MACROA_TELEGRAM_TOKEN.\n"
+            "  Get a token from @BotFather on Telegram."
+        )
+        sys.exit(1)
+    from macroa.channels.base import AdapterError
+    from macroa.channels.telegram import TelegramAdapter
+
+    allowed = set(allow) if allow else None
+    adapter = TelegramAdapter(token=token, run_fn=kernel.run, allowed_users=allowed)
+    try:
+        bot_info = adapter.validate_token()
+        render_info(
+            f"Telegram bot [bold]@{bot_info['username']}[/bold] connected.\n"
+            f"  Start chatting: https://t.me/{bot_info['username']}\n"
+            "  Press Ctrl+C to stop."
+        )
+    except AdapterError as exc:
+        render_error(str(exc))
+        sys.exit(1)
+
+    adapter.start()
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        adapter.stop()
+        render_info("Telegram adapter stopped.")
+
+
+@cli.command()
+@click.option("--token", default=None, envvar="MACROA_DISCORD_TOKEN",
+              help="Discord bot token (or set MACROA_DISCORD_TOKEN).")
+@click.option("--channel", multiple=True, metavar="CHANNEL_ID",
+              help="Channel IDs to listen in (repeat for multiple).")
+@click.option("--allow", multiple=True, metavar="USER_ID",
+              help="Restrict to these Discord user IDs.")
+def discord(token: str | None, channel: tuple[str, ...], allow: tuple[str, ...]) -> None:
+    """Start the Discord bot adapter (blocks until Ctrl+C)."""
+    if not token:
+        render_error(
+            "No token provided. Pass --token or set MACROA_DISCORD_TOKEN.\n"
+            "  Get a token at discord.com/developers → Your App → Bot."
+        )
+        sys.exit(1)
+    from macroa.channels.base import AdapterError
+    from macroa.channels.discord import DiscordAdapter
+
+    allowed = set(allow) if allow else None
+    channel_ids = list(channel) if channel else None
+    adapter = DiscordAdapter(
+        token=token, run_fn=kernel.run,
+        channel_ids=channel_ids, allowed_users=allowed,
+    )
+    try:
+        bot_info = adapter.validate_token()
+        render_info(
+            f"Discord bot [bold]{bot_info['username']}[/bold] connected.\n"
+            "  Press Ctrl+C to stop."
+        )
+    except AdapterError as exc:
+        render_error(str(exc))
+        sys.exit(1)
+
+    adapter.start()
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        adapter.stop()
+        render_info("Discord adapter stopped.")
 
 
 @cli.command()

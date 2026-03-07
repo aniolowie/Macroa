@@ -39,6 +39,30 @@ logger = logging.getLogger(__name__)
 
 ConfirmCallback = Callable[[str, str], bool]
 
+# Blended cost per 1M tokens (input+output averaged) keyed on OpenRouter model ID.
+# "Blended" means a single $/M figure that works reasonably for prompt+completion combined.
+_COST_PER_MILLION: dict[str, float] = {
+    "google/gemini-2.5-flash-lite":  0.18,
+    "openai/gpt-5-nano":             0.14,
+    "deepseek/deepseek-v3.2":        0.31,
+    "openai/gpt-5-mini":             0.69,
+    "google/gemini-2.5-flash":       0.85,
+    "anthropic/claude-haiku-4-5":    2.00,
+    "anthropic/claude-sonnet-4-6":   6.00,
+    "anthropic/claude-opus-4-6":    10.00,
+    "openai/gpt-5":                  3.44,
+}
+
+
+def _compute_cost(usage: dict) -> tuple[int, int, float]:
+    """Return (prompt_tokens, completion_tokens, cost_usd) from llm.last_usage."""
+    prompt = int(usage.get("prompt_tokens") or 0)
+    completion = int(usage.get("completion_tokens") or 0)
+    model = usage.get("model", "")
+    price = _COST_PER_MILLION.get(model, 0.0)
+    cost = (prompt + completion) / 1_000_000 * price
+    return prompt, completion, cost
+
 # Thread-safe session store: session_id → ContextManager (in-process cache)
 _sessions: dict[str, ContextManager] = {}
 _sessions_lock = threading.Lock()
@@ -67,7 +91,8 @@ _audit: AuditLog | None = None
 _session_store: SessionStore | None = None
 _scheduler: Scheduler | None = None
 _watchdog: WatchdogManager | None = None
-_extractor: object | None = None  # macroa.memory.extractor.MemoryExtractor
+_extractor: object | None = None   # macroa.memory.extractor.MemoryExtractor
+_compactor: object | None = None   # macroa.memory.compactor.ContextCompactor
 
 # Skills that produce conversational output worth extracting user facts from
 _EXTRACTABLE_SKILLS = frozenset({"chat_skill", "agent_skill", "research_skill"})
@@ -104,13 +129,26 @@ def _get_drivers() -> DriverBundle:
 
         ipc = IPCBus()
 
+        llm = LLMDriver(
+            api_key=settings.openrouter_api_key,
+            model_map=settings.model_map,
+            http_referer=settings.http_referer,
+            app_title=settings.app_title,
+        )
+
+        # Attach embedding store so new memory facts are auto-indexed for semantic search
+        try:
+            from macroa.memory.semantic import EmbeddingStore
+            emb_store = EmbeddingStore(
+                db_path=MACROA_DIR / "memory" / "embeddings.db",
+                llm=llm,
+            )
+            memory.set_embedding_store(emb_store)
+        except Exception as exc:
+            logger.debug("Embedding store init failed (semantic search unavailable): %s", exc)
+
         _drivers = DriverBundle(
-            llm=LLMDriver(
-                api_key=settings.openrouter_api_key,
-                model_map=settings.model_map,
-                http_referer=settings.http_referer,
-                app_title=settings.app_title,
-            ),
+            llm=llm,
             shell=ShellDriver(),
             fs=FSDriver(),
             memory=memory,
@@ -195,6 +233,16 @@ def _get_extractor():  # type: ignore[return]
     return _extractor
 
 
+def _get_compactor():  # type: ignore[return]
+    """Lazy-init the ContextCompactor singleton."""
+    global _compactor
+    if _compactor is None:
+        from macroa.memory.compactor import ContextCompactor
+        drivers = _get_drivers()
+        _compactor = ContextCompactor(llm=drivers.llm, memory=drivers.memory)
+    return _compactor
+
+
 def _get_watchdog() -> WatchdogManager:
     global _watchdog
     if _watchdog is None:
@@ -217,6 +265,10 @@ def _get_or_create_session(session_id: str) -> ContextManager:
                 session_id=session_id,
                 window_size=settings.context_window,
             )
+            # Hook compactor so evicted entries are summarised into episodic memory.
+            # Use a closure to capture the session_id so episodes are stored correctly.
+            _compactor_ref = _get_compactor()
+            mgr.on_evict = lambda entry, _sid=session_id: _compactor_ref.handle_eviction(entry, _sid)
             # Restore persisted context if this session has history
             store = _get_session_store()
             prior = store.load_context(session_id)
@@ -231,6 +283,7 @@ def run(
     raw_input: str,
     session_id: str | None = None,
     confirm_callback: ConfirmCallback | None = None,
+    stream_callback: Callable[[str], None] | None = None,
 ) -> SkillResult:
     """
     Main kernel entry point.
@@ -251,6 +304,9 @@ def run(
 
     t_start = time.monotonic()
     drivers = _get_drivers()
+    if stream_callback is not None:
+        import dataclasses
+        drivers = dataclasses.replace(drivers, stream_callback=stream_callback)
     registry = _get_registry()
     audit = _get_audit()
     ctx_manager = _get_or_create_session(session_id)
@@ -336,6 +392,15 @@ def run(
     _get_session_store().save_context(session_id, list(ctx_manager._buffer))
 
     elapsed_ms = int((time.monotonic() - t_start) * 1000)
+    prompt_tokens, completion_tokens, cost_usd = _compute_cost(drivers.llm.last_usage)
+
+    # Expose token/cost in result metadata so the renderer can show it in debug mode
+    if prompt_tokens or completion_tokens:
+        result.metadata.update(
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            cost_usd=cost_usd,
+        )
 
     # Audit every call
     audit.record(AuditEntry(
@@ -348,6 +413,9 @@ def run(
         elapsed_ms=elapsed_ms,
         plan_steps=result.metadata.get("plan_steps", 0),
         error=result.error,
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+        cost_usd=cost_usd,
     ))
 
     bus.emit(Event(
@@ -516,6 +584,28 @@ def watch_delete(observer_id: str) -> bool:
 def watch_enable(observer_id: str, enabled: bool = True) -> bool:
     """Enable or disable an observer."""
     return _get_watchdog().enable(observer_id, enabled)
+
+
+def run_agents(
+    tasks: list,
+    original_request: str,
+    session_id: str | None = None,
+) -> SkillResult:
+    """Run multiple AgentTask objects in parallel, respecting dependencies.
+
+    Args:
+        tasks:            list of AgentTask instances.
+        original_request: the top-level user request (used for synthesis prompt).
+        session_id:       parent session ID; subagents derive ephemeral sessions from it.
+
+    Returns:
+        SkillResult with merged output and metadata.
+    """
+    from macroa.kernel.multi_agent import MultiAgentCoordinator
+    drivers = _get_drivers()
+    sid = session_id or get_session_id()
+    coordinator = MultiAgentCoordinator(drivers=drivers, session_id=sid)
+    return coordinator.run(tasks=tasks, original_request=original_request)
 
 
 def get_audit_stats() -> dict:
