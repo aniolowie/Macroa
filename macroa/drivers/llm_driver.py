@@ -34,11 +34,9 @@ class LLMDriver:
             base_url="https://openrouter.ai/api/v1",
             default_headers=extra_headers if extra_headers else None,
         )
-
-    # Token usage from the most recent call — read by BudgetManager after each round.
-    # Not thread-safe across concurrent sessions; acceptable since each session
-    # runs in a single thread and reads usage immediately after its own call.
-    last_usage: dict = {}
+        # Token usage from the most recent call — instance-level so concurrent
+        # agents each maintain their own usage without overwriting each other.
+        self.last_usage: dict = {}
 
     def complete(
         self,

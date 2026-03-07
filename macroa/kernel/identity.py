@@ -166,9 +166,11 @@ def _build_capabilities_section() -> str:
         "",
         "## Your Capabilities",
         "",
-        "You run on Macroa, a local-first personal AI OS. "
-        "The kernel routes every request to the best skill automatically — "
-        "you do not need to call skills explicitly.",
+        (
+            "You run on Macroa, a local-first personal AI OS. "
+            "The kernel routes every request to the best skill automatically — "
+            "you do not need to call skills explicitly."
+        ),
         "",
     ]
 
@@ -211,7 +213,7 @@ def _ensure_file(path: Path, default: str) -> str:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(default, encoding="utf-8")
     except OSError:
-        pass
+        pass  # file creation is optional — return default instead
     return default
 
 

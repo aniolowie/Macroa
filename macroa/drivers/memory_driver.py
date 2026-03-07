@@ -271,7 +271,7 @@ class MemoryDriver:
             try:
                 self._embedding_store.queue_embed(namespace, key, f"{key}: {value}")
             except Exception:
-                pass
+                pass  # embedding is best-effort — never fail a memory write
 
     def get(self, namespace: str, key: str) -> str | None:
         """Retrieve a fact value by exact key. Returns None if missing or expired."""

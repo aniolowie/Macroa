@@ -64,7 +64,7 @@ def is_running() -> bool:
         try:
             pf.unlink(missing_ok=True)
         except OSError:
-            pass
+            pass  # best-effort cleanup — if unlink fails, just proceed
         return False
 
 
@@ -112,7 +112,7 @@ def start(port: int = 8000, web: bool = True) -> int:
                 if written_pid == proc.pid or is_running():
                     return proc.pid
             except ValueError:
-                pass
+                pass  # PID file written mid-write; retry on next iteration
         time.sleep(0.1)
 
     # PID file never appeared — check if process is still alive
@@ -224,7 +224,7 @@ def _daemon_main(port: int = 8000, web: bool = True) -> None:
     try:
         kernel.shutdown()
     except Exception:
-        pass
+        pass  # shutdown errors are non-fatal during daemon teardown
     pf.unlink(missing_ok=True)
     sf.unlink(missing_ok=True)
     logger.info("Daemon stopped")

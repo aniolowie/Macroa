@@ -146,7 +146,6 @@ def _get_drivers() -> DriverBundle:
             memory.set_embedding_store(emb_store)
         except Exception as exc:
             logger.debug("Embedding store init failed (semantic search unavailable): %s", exc)
-            emb_store = None
 
         _drivers = DriverBundle(
             llm=llm,
@@ -266,8 +265,10 @@ def _get_or_create_session(session_id: str) -> ContextManager:
                 session_id=session_id,
                 window_size=settings.context_window,
             )
-            # Hook compactor so evicted entries are summarised into episodic memory
-            mgr.on_evict = _get_compactor().handle_eviction
+            # Hook compactor so evicted entries are summarised into episodic memory.
+            # Use a closure to capture the session_id so episodes are stored correctly.
+            _compactor_ref = _get_compactor()
+            mgr.on_evict = lambda entry, _sid=session_id: _compactor_ref.handle_eviction(entry, _sid)
             # Restore persisted context if this session has history
             store = _get_session_store()
             prior = store.load_context(session_id)

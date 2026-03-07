@@ -39,8 +39,6 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 _EMBED_MODEL = "openai/text-embedding-3-small"
-_DIMS = 1536       # text-embedding-3-small dimensions
-_BATCH_SIZE = 64   # facts to embed per API call
 _CACHE_SIZE = 128  # in-memory LRU for query embeddings
 
 
@@ -229,7 +227,7 @@ class EmbeddingStore:
                     "DELETE FROM embeddings WHERE namespace=? AND key=?", (namespace, key)
                 )
         except sqlite3.OperationalError:
-            pass
+            pass  # table may not exist yet — deletion is a no-op
 
     def count(self) -> int:
         """Return total number of stored embeddings."""
@@ -268,7 +266,8 @@ class SemanticRetriever:
 
         # Always run FTS5 retrieval
         fts_results = fts_retrieve(query, self._memory)
-        fts_keys = {f["key"] for f in fts_results}
+        # Deduplicate on (namespace, key) to avoid cross-namespace collisions
+        seen: set[tuple[str, str]] = {(f["namespace"], f["key"]) for f in fts_results}
 
         if self._embeddings is None:
             return fts_results[:limit]
@@ -280,10 +279,9 @@ class SemanticRetriever:
 
         # Merge: semantic results that FTS5 didn't find
         all_facts = list(fts_results)
-        added_keys = set(fts_keys)
 
         for ns, key, score in semantic_hits:
-            if key in added_keys:
+            if (ns, key) in seen:
                 continue
             fact = self._memory.get(ns, key)
             if fact is None:
@@ -297,6 +295,6 @@ class SemanticRetriever:
                 "updated_at": 0.0,
                 "pinned": False,
             })
-            added_keys.add(key)
+            seen.add((ns, key))
 
         return all_facts[:limit]

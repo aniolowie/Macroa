@@ -53,7 +53,7 @@ class AgentLoop:
                 memory_lines.append("\n## Relevant Memory\n")
                 memory_lines.extend(f"- {f['key']}: {f['value']}" for f in facts)
         except Exception:
-            pass
+            pass  # memory retrieval is best-effort — never block agent execution
 
         # Inject compacted episodes
         episode_lines: list[str] = []
@@ -63,7 +63,7 @@ class AgentLoop:
                 episode_lines.append("\n## Earlier in this conversation (compacted)\n")
                 episode_lines.extend(f"- {ep.summary}" for ep in episodes)
         except Exception:
-            pass
+            pass  # episode retrieval is best-effort — never block agent execution
 
         system_prompt = "\n".join(filter(None, [
             time_ctx,

@@ -110,14 +110,17 @@ class TestWebhookStore:
 
         store = WebhookStore(db_path=tmp_path / "wh.db")
         store.create(WebhookConfig(name="del-me", command_template="t", session_id="s"))
-        assert store.delete("del-me") is True
-        assert store.get("del-me") is None
+        deleted = store.delete("del-me")
+        assert deleted is True
+        fetched = store.get("del-me")
+        assert fetched is None
 
     def test_delete_nonexistent_returns_false(self, tmp_path: Path):
         from macroa.web.webhooks import WebhookStore
 
         store = WebhookStore(db_path=tmp_path / "wh.db")
-        assert store.delete("nope") is False
+        result = store.delete("nope")
+        assert result is False
 
     def test_get_nonexistent_returns_none(self, tmp_path: Path):
         from macroa.web.webhooks import WebhookStore

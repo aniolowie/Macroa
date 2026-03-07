@@ -471,7 +471,6 @@ def telegram(token: str | None, allow: tuple[str, ...]) -> None:
             "  Get a token from @BotFather on Telegram."
         )
         sys.exit(1)
-    import macroa.kernel as kernel
     from macroa.channels.base import AdapterError
     from macroa.channels.telegram import TelegramAdapter
 
@@ -512,7 +511,6 @@ def discord(token: str | None, channel: tuple[str, ...], allow: tuple[str, ...])
             "  Get a token at discord.com/developers → Your App → Bot."
         )
         sys.exit(1)
-    import macroa.kernel as kernel
     from macroa.channels.base import AdapterError
     from macroa.channels.discord import DiscordAdapter
 

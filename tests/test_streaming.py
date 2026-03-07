@@ -137,10 +137,6 @@ class TestKernelStreamCallbackInjection:
         """Verify kernel.run() injects stream_callback into the DriverBundle copy."""
 
         received_drivers: list[DriverBundle] = []
-
-        def fake_dispatch(intent, context):
-            return SkillResult(output="ok", success=True, turn_id=intent.turn_id, model_tier=intent.model_tier)
-
         chunks: list[str] = []
 
         with patch("macroa.kernel._get_drivers") as mock_drivers, \

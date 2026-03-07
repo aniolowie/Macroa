@@ -95,32 +95,33 @@ class TestContextCompactor:
     def test_short_entry_skipped(self):
         compactor, llm, memory = self._make_compactor()
         entry = self._make_entry("ok")  # < _MIN_CHARS
-        compactor._compact(entry)  # call synchronously
+        compactor._compact(entry, "session-1")  # call synchronously
         llm.complete.assert_not_called()
         memory.add_episode.assert_not_called()
 
     def test_long_entry_compacted(self):
         compactor, llm, memory = self._make_compactor("User wants to build a new feature.")
         entry = self._make_entry("I want to build a new feature that handles async task queues " * 3)
-        compactor._compact(entry)
+        compactor._compact(entry, "session-1")
         llm.complete.assert_called_once()
         memory.add_episode.assert_called_once()
         call_kwargs = memory.add_episode.call_args[1]
         assert call_kwargs["summary"] == "User wants to build a new feature."
+        assert call_kwargs["session_id"] == "session-1"
         assert "compacted_context" in call_kwargs["tags"]
         assert "user" in call_kwargs["tags"]
 
     def test_empty_llm_response_skipped(self):
         compactor, llm, memory = self._make_compactor("")
         entry = self._make_entry("A reasonably long message that exceeds the minimum length threshold. " * 2)
-        compactor._compact(entry)
+        compactor._compact(entry, "session-1")
         llm.complete.assert_called_once()
         memory.add_episode.assert_not_called()
 
     def test_very_short_summary_skipped(self):
         compactor, llm, memory = self._make_compactor("ok")  # < 10 chars
         entry = self._make_entry("A reasonably long message that exceeds the minimum length threshold. " * 2)
-        compactor._compact(entry)
+        compactor._compact(entry, "session-1")
         memory.add_episode.assert_not_called()
 
     def test_llm_error_does_not_raise(self):
@@ -131,7 +132,7 @@ class TestContextCompactor:
         memory = MagicMock()
         compactor = ContextCompactor(llm=llm, memory=memory)
         entry = self._make_entry("A long enough message that should be compacted by the system.")
-        compactor._compact(entry)  # must not raise
+        compactor._compact(entry, "session-1")  # must not raise
 
     def test_handle_eviction_spawns_thread_for_long_entry(self):
         """handle_eviction should fire a daemon thread for long entries."""
@@ -148,7 +149,7 @@ class TestContextCompactor:
         with patch("macroa.memory.compactor.threading.Thread") as MockThread:
             mock_thread = MagicMock()
             MockThread.return_value = mock_thread
-            compactor.handle_eviction(entry)
+            compactor.handle_eviction(entry, "session-1")
 
         MockThread.assert_called_once()
         mock_thread.start.assert_called_once()
@@ -163,7 +164,7 @@ class TestContextCompactor:
         entry = self._make_entry("hi")  # very short
 
         with patch("macroa.memory.compactor.threading.Thread") as MockThread:
-            compactor.handle_eviction(entry)
+            compactor.handle_eviction(entry, "session-1")
 
         MockThread.assert_not_called()
 
@@ -173,7 +174,7 @@ class TestContextCompactor:
             "The memory system uses FTS5 for full-text search and stores facts in SQLite with schema migrations.",
             role="assistant",
         )
-        compactor._compact(entry)
+        compactor._compact(entry, "session-1")
         call_kwargs = memory.add_episode.call_args[1]
         assert "assistant" in call_kwargs["tags"]
 

@@ -39,7 +39,7 @@ def get_user_timezone(memory: MemoryDriver | None = None) -> str:
                 ZoneInfo(iana)  # validate
                 return iana
     except Exception:
-        pass
+        pass  # /etc/localtime may not be a symlink or may be unreadable
 
     return "UTC"
 

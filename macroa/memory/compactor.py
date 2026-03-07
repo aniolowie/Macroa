@@ -43,13 +43,13 @@ class ContextCompactor:
 
     # ── public ────────────────────────────────────────────────────────────────
 
-    def handle_eviction(self, entry: ContextEntry) -> None:
+    def handle_eviction(self, entry: ContextEntry, session_id: str) -> None:
         """Called synchronously from ContextManager.on_evict; dispatches to daemon thread."""
         if len(entry.content) < _MIN_CHARS:
             return
         t = threading.Thread(
             target=self._compact,
-            args=(entry,),
+            args=(entry, session_id),
             daemon=True,
             name=f"macroa-compactor-{entry.turn_id[:8]}",
         )
@@ -57,7 +57,7 @@ class ContextCompactor:
 
     # ── internal ──────────────────────────────────────────────────────────────
 
-    def _compact(self, entry: ContextEntry) -> None:
+    def _compact(self, entry: ContextEntry, session_id: str) -> None:
         if len(entry.content) < _MIN_CHARS:
             return
         try:
@@ -73,7 +73,7 @@ class ContextCompactor:
             if not summary or len(summary.strip()) < 10:
                 return
             self._memory.add_episode(
-                session_id=entry.turn_id,   # use turn_id as session surrogate for episodes
+                session_id=session_id,
                 summary=summary.strip(),
                 tags=["compacted_context", entry.role],
                 turn_count=1,

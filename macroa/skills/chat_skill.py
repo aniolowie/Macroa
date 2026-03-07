@@ -54,7 +54,7 @@ def _build_system(intent: Intent, drivers: DriverBundle, session_id: str = "") -
                 lines.append(f"- {ep.summary}")
             base = base + "\n\n" + "\n".join(lines)
     except Exception:
-        pass
+        pass  # episode fetch is best-effort — never break the chat response
 
     return (time_line + "\n\n" + base) if time_line else base
 

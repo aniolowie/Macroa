@@ -244,10 +244,6 @@ def _delete_reminder(raw: str, intent: Intent) -> SkillResult:
                 match = t
                 break
 
-    # If only one reminder and nothing matched, cancel it
-    if not match and len(reminders) == 1:
-        match = reminders[0]
-
     if not match:
         times = ", ".join(
             datetime.fromtimestamp(t.next_run_at).strftime("%H:%M") for t in reminders
