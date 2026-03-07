@@ -90,6 +90,7 @@ def _make_intent(raw: str) -> Intent:
 def _make_drivers(memory_results: list[dict]) -> DriverBundle:
     memory = MagicMock()
     memory.search.return_value = memory_results
+    memory.get_episodes.return_value = []   # no compacted episodes by default
     llm = MagicMock()
     llm.complete.return_value = "Hello!"
     return DriverBundle(
@@ -135,6 +136,7 @@ def test_chat_skill_memory_error_ignored():
 
     memory = MagicMock()
     memory.search.side_effect = RuntimeError("DB gone")
+    memory.get_episodes.return_value = []
     drivers = DriverBundle(
         llm=MagicMock(), shell=MagicMock(), fs=MagicMock(), memory=memory, network=MagicMock()
     )

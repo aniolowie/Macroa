@@ -28,9 +28,8 @@ MANIFEST = SkillManifest(
 )
 
 
-def _build_system(intent: Intent, drivers: DriverBundle) -> str:
-    """Build system prompt: current time + identity + contextually retrieved memory."""
-    # Always prepend real current time — prevents LLM from hallucinating time/date
+def _build_system(intent: Intent, drivers: DriverBundle, session_id: str = "") -> str:
+    """Build system prompt: current time + identity + contextually retrieved memory + episodes."""
     try:
         time_line = now_context(drivers.memory)
     except Exception:
@@ -46,13 +45,24 @@ def _build_system(intent: Intent, drivers: DriverBundle) -> str:
     except Exception:
         pass
 
+    # Inject recent compacted episodes so the model recalls earlier conversation turns
+    try:
+        episodes = drivers.memory.get_episodes(session_id=session_id or None, limit=4)
+        if episodes:
+            lines = ["## Earlier in this conversation (compacted)"]
+            for ep in reversed(episodes):  # oldest first
+                lines.append(f"- {ep.summary}")
+            base = base + "\n\n" + "\n".join(lines)
+    except Exception:
+        pass
+
     return (time_line + "\n\n" + base) if time_line else base
 
 
 def _build_messages(
     intent: Intent, context: Context, drivers: DriverBundle
 ) -> list[dict[str, str]]:
-    messages: list[dict[str, str]] = [{"role": "system", "content": _build_system(intent, drivers)}]
+    messages: list[dict[str, str]] = [{"role": "system", "content": _build_system(intent, drivers, context.session_id)}]
     for entry in context.entries:
         if entry.role in ("user", "assistant"):
             messages.append({"role": entry.role, "content": entry.content})

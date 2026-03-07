@@ -91,7 +91,8 @@ _audit: AuditLog | None = None
 _session_store: SessionStore | None = None
 _scheduler: Scheduler | None = None
 _watchdog: WatchdogManager | None = None
-_extractor: object | None = None  # macroa.memory.extractor.MemoryExtractor
+_extractor: object | None = None   # macroa.memory.extractor.MemoryExtractor
+_compactor: object | None = None   # macroa.memory.compactor.ContextCompactor
 
 # Skills that produce conversational output worth extracting user facts from
 _EXTRACTABLE_SKILLS = frozenset({"chat_skill", "agent_skill", "research_skill"})
@@ -219,6 +220,16 @@ def _get_extractor():  # type: ignore[return]
     return _extractor
 
 
+def _get_compactor():  # type: ignore[return]
+    """Lazy-init the ContextCompactor singleton."""
+    global _compactor
+    if _compactor is None:
+        from macroa.memory.compactor import ContextCompactor
+        drivers = _get_drivers()
+        _compactor = ContextCompactor(llm=drivers.llm, memory=drivers.memory)
+    return _compactor
+
+
 def _get_watchdog() -> WatchdogManager:
     global _watchdog
     if _watchdog is None:
@@ -241,6 +252,8 @@ def _get_or_create_session(session_id: str) -> ContextManager:
                 session_id=session_id,
                 window_size=settings.context_window,
             )
+            # Hook compactor so evicted entries are summarised into episodic memory
+            mgr.on_evict = _get_compactor().handle_eviction
             # Restore persisted context if this session has history
             store = _get_session_store()
             prior = store.load_context(session_id)
