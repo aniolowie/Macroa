@@ -264,6 +264,24 @@ class Scheduler:
             error = str(exc)
             logger.error("Scheduled task %r failed: %s", task.label, exc)
 
+        # Emit REMINDER_FIRED for notification subscribers (e.g. REPL banner)
+        if task.label.startswith("reminder:"):
+            try:
+                from macroa.kernel.events import Event, Events, bus
+                bus.emit(Event(
+                    event_type=Events.REMINDER_FIRED,
+                    source="scheduler",
+                    payload={
+                        "task_id": task.task_id,
+                        "label": task.label,
+                        "message": task.command,
+                        "fired_at": now,
+                    },
+                    session_id=task.session_id,
+                ))
+            except Exception:
+                pass  # never let notification failure break the scheduler
+
         # Calculate next run or remove if one-shot
         next_run = _parse_next_run(task.schedule, now, last_run_at=now)
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from macroa.drivers.llm_driver import LLMDriverError
+from macroa.kernel.clock import now_context
 from macroa.kernel.identity import build_system_prompt
 from macroa.memory.formatter import format_for_prompt
 from macroa.memory.retriever import retrieve
@@ -28,8 +29,15 @@ MANIFEST = SkillManifest(
 
 
 def _build_system(intent: Intent, drivers: DriverBundle) -> str:
-    """Build system prompt: identity + contextually retrieved memory."""
+    """Build system prompt: current time + identity + contextually retrieved memory."""
+    # Always prepend real current time — prevents LLM from hallucinating time/date
+    try:
+        time_line = now_context(drivers.memory)
+    except Exception:
+        time_line = ""
+
     base = build_system_prompt()
+
     try:
         facts = retrieve(intent.raw, drivers.memory)
         memory_block = format_for_prompt(facts)
@@ -37,7 +45,8 @@ def _build_system(intent: Intent, drivers: DriverBundle) -> str:
             base = base + "\n\n" + memory_block
     except Exception:
         pass
-    return base
+
+    return (time_line + "\n\n" + base) if time_line else base
 
 
 def _build_messages(

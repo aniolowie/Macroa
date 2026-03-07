@@ -58,6 +58,7 @@ class Events:
     RESEARCH_TOOL_CALL      = "research.tool.call"       # n, total, tool, arg
     RESEARCH_SUBAGENT_DONE  = "research.subagent.done"   # n, total, citation_count
     IPC_EMIT                = "ipc.emit"                 # channel, preview (first 120 chars)
+    REMINDER_FIRED          = "reminder.fired"            # task_id, label, message, fired_at
 
 
 @dataclass

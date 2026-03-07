@@ -65,6 +65,22 @@ def _register_research_feed() -> None:
         bus.subscribe(et, _on_research_event)
 
 
+def _on_reminder_fired(event: "Event") -> None:  # type: ignore[name-defined]  # noqa: F821
+    """Print a visible banner when a scheduled reminder fires."""
+    msg = event.payload.get("message", "")
+    from datetime import datetime
+    now_str = datetime.now().strftime("%H:%M")
+    console.print(
+        f"\n[bold yellow]⏰ Reminder [{now_str}][/bold yellow]  {msg}\n",
+        highlight=False,
+    )
+
+
+def _register_reminder_notifications() -> None:
+    from macroa.kernel.events import Events, bus
+    bus.subscribe(Events.REMINDER_FIRED, _on_reminder_fired)
+
+
 def _make_confirm_callback() -> Callable[[str, str], bool]:
     """Return a Rich-powered sudo confirm callback with a 30 s SIGALRM timeout."""
     def confirm(command: str, reason: str) -> bool:
@@ -243,6 +259,7 @@ def schedule_delete(task_id: str) -> None:
 
 def _repl(debug: bool, session_name: str | None) -> None:
     _register_research_feed()
+    _register_reminder_notifications()
     print_banner()
     session_id = _resolve_session(session_name)
     confirm_callback = _make_confirm_callback()
