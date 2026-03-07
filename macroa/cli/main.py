@@ -458,6 +458,89 @@ def daemon_status() -> None:
 
 
 @cli.command()
+@click.option("--token", default=None, envvar="MACROA_TELEGRAM_TOKEN",
+              help="Telegram bot token (or set MACROA_TELEGRAM_TOKEN).")
+@click.option("--allow", multiple=True, metavar="USER_ID",
+              help="Restrict to these Telegram user IDs (repeat for multiple).")
+def telegram(token: str | None, allow: tuple[str, ...]) -> None:
+    """Start the Telegram bot adapter (blocks until Ctrl+C)."""
+    if not token:
+        render_error(
+            "No token provided. Pass --token or set MACROA_TELEGRAM_TOKEN.\n"
+            "  Get a token from @BotFather on Telegram."
+        )
+        sys.exit(1)
+    from macroa.channels.telegram import TelegramAdapter
+    from macroa.channels.base import AdapterError
+    import macroa.kernel as kernel
+
+    allowed = set(allow) if allow else None
+    adapter = TelegramAdapter(token=token, run_fn=kernel.run, allowed_users=allowed)
+    try:
+        bot_info = adapter.validate_token()
+        render_info(
+            f"Telegram bot [bold]@{bot_info['username']}[/bold] connected.\n"
+            f"  Start chatting: https://t.me/{bot_info['username']}\n"
+            "  Press Ctrl+C to stop."
+        )
+    except AdapterError as exc:
+        render_error(str(exc))
+        sys.exit(1)
+
+    adapter.start()
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        adapter.stop()
+        render_info("Telegram adapter stopped.")
+
+
+@cli.command()
+@click.option("--token", default=None, envvar="MACROA_DISCORD_TOKEN",
+              help="Discord bot token (or set MACROA_DISCORD_TOKEN).")
+@click.option("--channel", multiple=True, metavar="CHANNEL_ID",
+              help="Channel IDs to listen in (repeat for multiple).")
+@click.option("--allow", multiple=True, metavar="USER_ID",
+              help="Restrict to these Discord user IDs.")
+def discord(token: str | None, channel: tuple[str, ...], allow: tuple[str, ...]) -> None:
+    """Start the Discord bot adapter (blocks until Ctrl+C)."""
+    if not token:
+        render_error(
+            "No token provided. Pass --token or set MACROA_DISCORD_TOKEN.\n"
+            "  Get a token at discord.com/developers → Your App → Bot."
+        )
+        sys.exit(1)
+    from macroa.channels.discord import DiscordAdapter
+    from macroa.channels.base import AdapterError
+    import macroa.kernel as kernel
+
+    allowed = set(allow) if allow else None
+    channel_ids = list(channel) if channel else None
+    adapter = DiscordAdapter(
+        token=token, run_fn=kernel.run,
+        channel_ids=channel_ids, allowed_users=allowed,
+    )
+    try:
+        bot_info = adapter.validate_token()
+        render_info(
+            f"Discord bot [bold]{bot_info['username']}[/bold] connected.\n"
+            "  Press Ctrl+C to stop."
+        )
+    except AdapterError as exc:
+        render_error(str(exc))
+        sys.exit(1)
+
+    adapter.start()
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        adapter.stop()
+        render_info("Discord adapter stopped.")
+
+
+@cli.command()
 def setup() -> None:
     """Run the interactive setup wizard (configure API key, name, models)."""
     _wizard.run_wizard(rerun=True)
