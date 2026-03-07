@@ -356,17 +356,19 @@ class TestVFSSkill:
         assert not result.success
         assert "not available" in result.error
 
-    def test_missing_path_returns_error(self, vfs):
+    def test_missing_path_lists_mounts(self, vfs):
+        """Empty path or '/' should return the VFS mount listing, not an error."""
         from macroa.skills.vfs_skill import run
         from macroa.stdlib.schema import Context, Intent, ModelTier
         ctx = Context(entries=[], session_id="t")
         d = self._drivers(vfs)
         intent = Intent(
-            raw="read",
+            raw="what files do you have access to",
             skill_name="vfs_skill",
-            parameters={"action": "read", "path": ""},
+            parameters={"action": "list", "path": ""},
             model_tier=ModelTier.NANO,
             routing_confidence=1.0,
         )
         result = run(intent, ctx, d)
-        assert not result.success
+        assert result.success
+        assert "Available VFS namespaces" in result.output
