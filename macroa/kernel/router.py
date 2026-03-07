@@ -297,7 +297,7 @@ class Router:
 
     # ── Helpers ───────────────────────────────────────────────────────────────
 
-    def _memory_shortcut(self, raw_input: str, turn_id: str) -> Optional[Intent]:
+    def _memory_shortcut(self, raw_input: str, turn_id: str) -> Intent | None:
         """Regex-based extraction for common memory patterns — no LLM call needed."""
         stripped = raw_input.strip()
 

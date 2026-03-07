@@ -465,7 +465,7 @@ def _repl_via_socket(sock: _socket.socket, session_id: str, debug: bool) -> None
                 if output:
                     markers = ("# ", "## ", "**", "- ", "* ", "```", "> ", "1. ")
                     lines = output.splitlines()
-                    is_md = any(l.startswith(m) for l in lines[:10] for m in markers)
+                    is_md = any(ln.startswith(m) for ln in lines[:10] for m in markers)
                     if is_md:
                         console.print(Markdown(output))
                     else:
