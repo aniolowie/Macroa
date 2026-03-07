@@ -39,6 +39,30 @@ logger = logging.getLogger(__name__)
 
 ConfirmCallback = Callable[[str, str], bool]
 
+# Blended cost per 1M tokens (input+output averaged) keyed on OpenRouter model ID.
+# "Blended" means a single $/M figure that works reasonably for prompt+completion combined.
+_COST_PER_MILLION: dict[str, float] = {
+    "google/gemini-2.5-flash-lite":  0.18,
+    "openai/gpt-5-nano":             0.14,
+    "deepseek/deepseek-v3.2":        0.31,
+    "openai/gpt-5-mini":             0.69,
+    "google/gemini-2.5-flash":       0.85,
+    "anthropic/claude-haiku-4-5":    2.00,
+    "anthropic/claude-sonnet-4-6":   6.00,
+    "anthropic/claude-opus-4-6":    10.00,
+    "openai/gpt-5":                  3.44,
+}
+
+
+def _compute_cost(usage: dict) -> tuple[int, int, float]:
+    """Return (prompt_tokens, completion_tokens, cost_usd) from llm.last_usage."""
+    prompt = int(usage.get("prompt_tokens") or 0)
+    completion = int(usage.get("completion_tokens") or 0)
+    model = usage.get("model", "")
+    price = _COST_PER_MILLION.get(model, 0.0)
+    cost = (prompt + completion) / 1_000_000 * price
+    return prompt, completion, cost
+
 # Thread-safe session store: session_id → ContextManager (in-process cache)
 _sessions: dict[str, ContextManager] = {}
 _sessions_lock = threading.Lock()
@@ -340,6 +364,15 @@ def run(
     _get_session_store().save_context(session_id, list(ctx_manager._buffer))
 
     elapsed_ms = int((time.monotonic() - t_start) * 1000)
+    prompt_tokens, completion_tokens, cost_usd = _compute_cost(drivers.llm.last_usage)
+
+    # Expose token/cost in result metadata so the renderer can show it in debug mode
+    if prompt_tokens or completion_tokens:
+        result.metadata.update(
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            cost_usd=cost_usd,
+        )
 
     # Audit every call
     audit.record(AuditEntry(
@@ -352,6 +385,9 @@ def run(
         elapsed_ms=elapsed_ms,
         plan_steps=result.metadata.get("plan_steps", 0),
         error=result.error,
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+        cost_usd=cost_usd,
     ))
 
     bus.emit(Event(

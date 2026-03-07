@@ -69,9 +69,13 @@ def render_result(result: SkillResult, *, debug: bool = False, skip_output: bool
         tier_style = _TIER_STYLE.get(result.model_tier, "meta")
         tier_label = _TIER_LABEL.get(result.model_tier, result.model_tier.value)
         skill = result.metadata.get("skill", "—")
+        tokens = result.metadata.get("prompt_tokens", 0) + result.metadata.get("completion_tokens", 0)
+        cost = result.metadata.get("cost_usd", 0.0)
+        cost_str = f"  ${cost:.5f}" if cost else ""
+        token_str = f"  {tokens}tok" if tokens else ""
         console.print(
             f"[meta]  skill={skill}  tier={tier_label}  "
-            f"turn={result.turn_id[:8]}[/meta]",
+            f"turn={result.turn_id[:8]}{token_str}{cost_str}[/meta]",
             style=tier_style,
         )
 
