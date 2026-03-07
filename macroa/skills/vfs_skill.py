@@ -33,11 +33,13 @@ MANIFEST = SkillManifest(
         "Use VFS paths: /identity/ for identity files, /workspace/ for working files, "
         "/research/ for reports, /mem/<namespace>/<key> for persistent facts, "
         "/fs/<path> for system files. "
-        "Parameters: action (read|write|list|delete|exists|stat), path, content (for write)."
+        "Call with no path or path='/' to list all available namespaces. "
+        "Parameters: action (read|write|list|delete|exists|stat|mounts), path, content (for write)."
     ),
     triggers=[
         "read /", "write /", "list /", "show /identity", "show /workspace",
         "show /research", "show /mem", "/mem/", "/identity/", "/workspace/",
+        "what files", "files do you have", "access to files", "file access",
     ],
     model_tier=None,
     deterministic=True,
@@ -58,13 +60,29 @@ def run(intent: Intent, context: Context, drivers: DriverBundle) -> SkillResult:
     action = intent.parameters.get("action", "read").lower()
     path = intent.parameters.get("path", "").strip()
 
-    if not path:
+    # "/" or missing path → list available mount points
+    if not path or path == "/" or action == "mounts":
+        mounts = vfs.mounts()
+        lines = ["Available VFS namespaces:"]
+        descriptions = {
+            "/mem":       "persistent memory facts  (e.g. /mem/user/name)",
+            "/identity":  "identity files           (IDENTITY.md, USER.md, SOUL.md)",
+            "/workspace": "working files            (scratch notes, output artifacts)",
+            "/research":  "research reports",
+            "/tools":     "installed user tools",
+            "/logs":      "audit + scheduler logs",
+            "/sessions":  "session context files",
+            "/fs":        "full filesystem          (e.g. /fs/home/user/file.txt)",
+        }
+        for prefix, name in mounts:
+            desc = descriptions.get(prefix, name)
+            lines.append(f"  {prefix}/  — {desc}")
         return SkillResult(
-            output="",
-            success=False,
-            error="No path provided to vfs_skill",
+            output="\n".join(lines),
+            success=True,
             turn_id=intent.turn_id,
             model_tier=intent.model_tier,
+            metadata={"action": "mounts", "count": len(mounts)},
         )
 
     try:
