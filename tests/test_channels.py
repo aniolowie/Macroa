@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch, call
-
+from unittest.mock import MagicMock, patch
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -88,9 +87,7 @@ class TestBaseAdapter:
         assert "went wrong" in adapter.sent[0][1].lower()
 
     def test_start_creates_daemon_thread(self):
-        import threading
         adapter = self._make_adapter()
-        started: list = []
         with patch("threading.Thread") as MockThread:
             mock_t = MagicMock()
             MockThread.return_value = mock_t

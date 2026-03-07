@@ -2,13 +2,9 @@
 
 from __future__ import annotations
 
-import time
 from unittest.mock import MagicMock, patch
 
-import pytest
-
-from macroa.stdlib.schema import ContextEntry, SkillResult, ModelTier
-
+from macroa.stdlib.schema import ContextEntry, ModelTier, SkillResult
 
 # ── ContextManager.on_evict hook ──────────────────────────────────────────────
 
@@ -188,7 +184,7 @@ class TestContextCompactor:
 class TestEpisodesInSystemPrompt:
     def test_episodes_appear_in_prompt(self):
         from macroa.skills.chat_skill import _build_system
-        from macroa.stdlib.schema import Context, DriverBundle, Intent, ModelTier
+        from macroa.stdlib.schema import DriverBundle, Intent, ModelTier
 
         class FakeEpisode:
             summary = "User was asking about memory architecture."
@@ -218,7 +214,7 @@ class TestEpisodesInSystemPrompt:
 
     def test_no_episodes_no_section(self):
         from macroa.skills.chat_skill import _build_system
-        from macroa.stdlib.schema import Context, DriverBundle, Intent, ModelTier
+        from macroa.stdlib.schema import DriverBundle, Intent, ModelTier
 
         memory = MagicMock()
         memory.get.return_value = None

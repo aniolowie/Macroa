@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 
 # ── AuditEntry fields ─────────────────────────────────────────────────────────
 
@@ -36,9 +37,6 @@ def test_audit_entry_stores_cost():
 
 
 # ── AuditLog schema and round-trip ────────────────────────────────────────────
-
-
-import pytest
 
 
 def test_audit_log_records_and_reads_cost(tmp_path: Path):
@@ -103,6 +101,7 @@ def test_audit_stats_cost_by_tier(tmp_path: Path):
 def test_audit_migration_adds_columns_to_old_schema(tmp_path: Path):
     """Simulate a pre-cost-tracking database and verify migration adds columns."""
     import sqlite3
+
     from macroa.kernel.audit import AuditEntry, AuditLog
 
     db_path = tmp_path / "old.db"

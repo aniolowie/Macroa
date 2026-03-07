@@ -32,9 +32,8 @@ import logging
 import threading
 import time
 from dataclasses import dataclass, field
-from typing import Any
 
-from macroa.stdlib.schema import Context, DriverBundle, Intent, ModelTier, SkillResult
+from macroa.stdlib.schema import DriverBundle, Intent, ModelTier, SkillResult
 
 logger = logging.getLogger(__name__)
 
@@ -204,8 +203,8 @@ class MultiAgentCoordinator:
 
     def _run_agent(self, task: AgentTask, context_injection: str) -> AgentResult:
         """Run a single AgentLoop for one task."""
-        from macroa.kernel.agent import AgentLoop
         from macroa.kernel import _get_or_create_session as get_or_create_context
+        from macroa.kernel.agent import AgentLoop
 
         t0 = time.monotonic()
 
@@ -329,4 +328,3 @@ def _build_dep_context(task: AgentTask, results: dict[str, AgentResult]) -> str:
 # ── Intent import helper ──────────────────────────────────────────────────────
 
 # Re-export for convenience
-from macroa.stdlib.schema import Intent  # noqa: E402

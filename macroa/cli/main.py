@@ -65,7 +65,7 @@ def _register_research_feed() -> None:
         bus.subscribe(et, _on_research_event)
 
 
-def _on_reminder_fired(event: "Event") -> None:  # type: ignore[name-defined]  # noqa: F821
+def _on_reminder_fired(event: Event) -> None:  # type: ignore[name-defined]  # noqa: F821
     """Print a visible banner when a scheduled reminder fires."""
     msg = event.payload.get("message", "")
     from datetime import datetime
@@ -407,7 +407,8 @@ def daemon() -> None:
 @click.option("--no-web", is_flag=True, default=False, help="Disable the HTTP API.")
 def daemon_start(port: int, no_web: bool) -> None:
     """Start the background daemon (scheduler + watchdog + optional web API)."""
-    from macroa.kernel.daemon import is_running, start as daemon_start_fn
+    from macroa.kernel.daemon import is_running
+    from macroa.kernel.daemon import start as daemon_start_fn
     if is_running():
         from macroa.kernel.daemon import pid_file
         pid = pid_file().read_text().strip()
@@ -470,9 +471,9 @@ def telegram(token: str | None, allow: tuple[str, ...]) -> None:
             "  Get a token from @BotFather on Telegram."
         )
         sys.exit(1)
-    from macroa.channels.telegram import TelegramAdapter
-    from macroa.channels.base import AdapterError
     import macroa.kernel as kernel
+    from macroa.channels.base import AdapterError
+    from macroa.channels.telegram import TelegramAdapter
 
     allowed = set(allow) if allow else None
     adapter = TelegramAdapter(token=token, run_fn=kernel.run, allowed_users=allowed)
@@ -511,9 +512,9 @@ def discord(token: str | None, channel: tuple[str, ...], allow: tuple[str, ...])
             "  Get a token at discord.com/developers → Your App → Bot."
         )
         sys.exit(1)
-    from macroa.channels.discord import DiscordAdapter
-    from macroa.channels.base import AdapterError
     import macroa.kernel as kernel
+    from macroa.channels.base import AdapterError
+    from macroa.channels.discord import DiscordAdapter
 
     allowed = set(allow) if allow else None
     channel_ids = list(channel) if channel else None

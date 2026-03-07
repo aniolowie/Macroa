@@ -135,7 +135,6 @@ class TestChatSkillStreaming:
 class TestKernelStreamCallbackInjection:
     def test_stream_callback_reaches_drivers(self):
         """Verify kernel.run() injects stream_callback into the DriverBundle copy."""
-        import dataclasses
 
         received_drivers: list[DriverBundle] = []
 

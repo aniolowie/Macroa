@@ -9,7 +9,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-
 # ── clock.get_user_timezone ────────────────────────────────────────────────────
 
 
@@ -70,6 +69,7 @@ class TestNowContext:
 
     def test_contains_hhmm(self):
         import re
+
         from macroa.kernel.clock import now_context
 
         assert re.search(r"\d{2}:\d{2}", now_context(None))
@@ -226,7 +226,7 @@ class TestResolveTz:
 class TestReminderFiredEvent:
     def test_fire_emits_event_for_reminder_task(self, tmp_path: Path):
         from macroa.kernel.events import Events, bus
-        from macroa.kernel.scheduler import Scheduler, ScheduledTask
+        from macroa.kernel.scheduler import ScheduledTask, Scheduler
 
         received: list = []
 
@@ -260,7 +260,7 @@ class TestReminderFiredEvent:
 
     def test_fire_does_not_emit_for_non_reminder_task(self, tmp_path: Path):
         from macroa.kernel.events import Events, bus
-        from macroa.kernel.scheduler import Scheduler, ScheduledTask
+        from macroa.kernel.scheduler import ScheduledTask, Scheduler
 
         received: list = []
 
@@ -288,7 +288,7 @@ class TestReminderFiredEvent:
 
     def test_payload_contains_fired_at(self, tmp_path: Path):
         from macroa.kernel.events import Events, bus
-        from macroa.kernel.scheduler import Scheduler, ScheduledTask
+        from macroa.kernel.scheduler import ScheduledTask, Scheduler
 
         received: list = []
         bus.subscribe(Events.REMINDER_FIRED, lambda e: received.append(e))
@@ -315,7 +315,7 @@ class TestReminderFiredEvent:
     def test_run_fn_exception_does_not_suppress_event(self, tmp_path: Path):
         """Even if the run_fn fails, the REMINDER_FIRED event should still emit."""
         from macroa.kernel.events import Events, bus
-        from macroa.kernel.scheduler import Scheduler, ScheduledTask
+        from macroa.kernel.scheduler import ScheduledTask, Scheduler
 
         received: list = []
 

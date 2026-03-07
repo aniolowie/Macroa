@@ -11,8 +11,8 @@ Available adapters:
   DiscordAdapter   — Discord Bot API (gateway or HTTP polling)
 """
 
-from macroa.channels.base import BaseAdapter, AdapterError  # noqa: F401
-from macroa.channels.telegram import TelegramAdapter  # noqa: F401
+from macroa.channels.base import AdapterError, BaseAdapter  # noqa: F401
 from macroa.channels.discord import DiscordAdapter  # noqa: F401
+from macroa.channels.telegram import TelegramAdapter  # noqa: F401
 
 __all__ = ["BaseAdapter", "AdapterError", "TelegramAdapter", "DiscordAdapter"]

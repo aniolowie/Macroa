@@ -5,9 +5,13 @@ from __future__ import annotations
 import time
 from unittest.mock import MagicMock, patch
 
-from macroa.kernel.multi_agent import AgentTask, AgentResult, MultiAgentCoordinator, _build_dep_context
+from macroa.kernel.multi_agent import (
+    AgentResult,
+    AgentTask,
+    MultiAgentCoordinator,
+    _build_dep_context,
+)
 from macroa.stdlib.schema import ModelTier, SkillResult
-
 
 # ── fixtures ──────────────────────────────────────────────────────────────────
 

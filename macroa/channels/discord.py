@@ -189,6 +189,7 @@ class DiscordAdapter(BaseAdapter):
 
     async def _async_gateway(self) -> None:
         import asyncio
+
         import websockets
 
         # Get Gateway URL
@@ -214,7 +215,7 @@ class DiscordAdapter(BaseAdapter):
                 while not self._stop.is_set():
                     try:
                         raw = await asyncio.wait_for(ws.recv(), timeout=heartbeat_interval / 1000 + 5)
-                    except asyncio.TimeoutError:
+                    except TimeoutError:
                         continue
 
                     payload = json.loads(raw)

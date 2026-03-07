@@ -5,8 +5,7 @@ from __future__ import annotations
 import struct
 import time
 from pathlib import Path
-from unittest.mock import MagicMock, patch
-
+from unittest.mock import MagicMock
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -23,7 +22,7 @@ def _make_llm(vectors: list[list[float]] | None = None):
     return llm
 
 
-def _make_store(tmp_path: Path, llm=None) -> "EmbeddingStore":
+def _make_store(tmp_path: Path, llm=None):
     from macroa.memory.semantic import EmbeddingStore
     return EmbeddingStore(db_path=tmp_path / "embeddings.db", llm=llm)
 
@@ -91,8 +90,9 @@ class TestEmbeddingStore:
         store = _make_store(tmp_path, llm)
 
         # Manually insert two embeddings
-        from macroa.memory.semantic import _pack
         import sqlite3
+
+        from macroa.memory.semantic import _pack
         with sqlite3.connect(str(tmp_path / "embeddings.db")) as conn:
             conn.execute("""
                 INSERT INTO embeddings (id, namespace, key, model, vector, created_at)
@@ -121,8 +121,9 @@ class TestEmbeddingStore:
         assert results == []
 
     def test_delete_removes_embedding(self, tmp_path: Path):
-        from macroa.memory.semantic import _pack
         import sqlite3
+
+        from macroa.memory.semantic import _pack
         store = _make_store(tmp_path)
         with sqlite3.connect(str(tmp_path / "embeddings.db")) as conn:
             conn.execute("""
@@ -170,8 +171,9 @@ class TestSemanticRetriever:
         assert any(r["key"] == "name" for r in results)
 
     def test_semantic_results_merged_with_fts(self, tmp_path: Path):
-        from macroa.memory.semantic import SemanticRetriever, EmbeddingStore, _pack
         import sqlite3
+
+        from macroa.memory.semantic import EmbeddingStore, SemanticRetriever, _pack
 
         # Set up embedding store with one entry NOT in FTS5 results
         llm = _make_llm(vectors=[[1.0, 0.0]])
@@ -192,8 +194,9 @@ class TestSemanticRetriever:
         assert any(r["key"] == "city" for r in results)
 
     def test_duplicate_keys_not_doubled(self, tmp_path: Path):
-        from macroa.memory.semantic import SemanticRetriever, EmbeddingStore, _pack
         import sqlite3
+
+        from macroa.memory.semantic import EmbeddingStore, SemanticRetriever, _pack
 
         # Both FTS5 and semantic find "name"
         llm = _make_llm(vectors=[[1.0, 0.0]])
@@ -241,8 +244,9 @@ class TestLLMDriverEmbed:
         driver._client.embeddings.create.assert_not_called()
 
     def test_embed_api_error_raises(self):
-        from macroa.drivers.llm_driver import LLMDriver, LLMDriverError
         from openai import APIError
+
+        from macroa.drivers.llm_driver import LLMDriver, LLMDriverError
 
         driver = LLMDriver.__new__(LLMDriver)
         mock_client = MagicMock()
