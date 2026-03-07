@@ -323,8 +323,9 @@ def run(
     router = Router(llm=drivers.llm, registry=registry)
     intent = router.route(raw_input, context_snapshot)
 
-    # First boot: no IDENTITY.md → force agent_skill for onboarding regardless of router
-    if _is_first_boot() and intent.skill_name != "shell_skill":
+    # First boot: no IDENTITY.md → force agent_skill for onboarding regardless of router.
+    # Exclude deterministic skills (shell, memory) so simple ops still work during onboarding.
+    if _is_first_boot() and intent.skill_name not in {"shell_skill", "memory_skill"}:
         from macroa.stdlib.schema import ModelTier as _MT
         intent = Intent(
             raw=intent.raw,

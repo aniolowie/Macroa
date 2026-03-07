@@ -46,6 +46,7 @@ class Settings:
     session_budget_tokens: int   # max tokens per session (0 = unlimited)
     network_timeout: int         # default HTTP timeout in seconds
     user_name: str           # display name set during setup wizard
+    socket_path: Path        # Unix domain socket for thin-client attach
 
     @property
     def model_map(self) -> dict[str, str]:
@@ -119,4 +120,7 @@ def get_settings() -> Settings:
         session_budget_tokens=int(os.environ.get("MACROA_SESSION_BUDGET_TOKENS", "0")),
         network_timeout=int(os.environ.get("MACROA_NETWORK_TIMEOUT", "30")),
         user_name=os.environ.get("MACROA_USER_NAME", ""),
+        socket_path=Path(
+            os.environ.get("MACROA_SOCKET_PATH", str(macroa_dir / "macroa.sock"))
+        ).expanduser(),
     )

@@ -13,6 +13,7 @@ System prompt architecture (modelled after OpenClaw's intentional section design
 
 from __future__ import annotations
 
+import os
 import platform
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -117,7 +118,7 @@ resource acquisition, or influence beyond the current task."""
 
 
 def _build_runtime_section() -> str:
-    """One-line compact runtime context: version, OS, workspace."""
+    """One-line compact runtime context: version, OS, workspace, cwd."""
     try:
         from importlib.metadata import version
         macroa_version = f"v{version('macroa')}"
@@ -126,11 +127,12 @@ def _build_runtime_section() -> str:
 
     os_info = f"{platform.system()} {platform.machine()}"
     py_version = platform.python_version()
+    cwd = os.getcwd()
 
     return (
         f"## Runtime\n"
         f"Macroa {macroa_version}  ·  {os_info}  ·  Python {py_version}  ·  "
-        f"workspace: {_MACROA_DIR}"
+        f"workspace: {_MACROA_DIR}  ·  cwd: {cwd}"
     )
 
 

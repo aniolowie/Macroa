@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import signal
+import socket as _socket
 import sys
 import time
 from collections.abc import Callable
+from pathlib import Path
 
 import click
 from rich.prompt import Prompt
@@ -254,17 +257,238 @@ def schedule_delete(task_id: str) -> None:
     render_info(f"Task '{matches[0].label}' deleted.")
 
 
+# ------------------------------------------------------------------ socket helpers
+
+
+def _connect_socket(socket_path: Path) -> _socket.socket | None:
+    """Open a Unix domain socket connection; return socket or None on failure."""
+    try:
+        sock = _socket.socket(_socket.AF_UNIX, _socket.SOCK_STREAM)
+        sock.connect(str(socket_path))
+        return sock
+    except OSError:
+        return None
+
+
+def _socket_alive(socket_path: Path) -> bool:
+    """Return True if daemon is listening and responds with a banner."""
+    sock = _connect_socket(socket_path)
+    if sock is None:
+        return False
+    try:
+        sock.settimeout(2.0)
+        line = sock.makefile("rb").readline()
+        if not line:
+            return False
+        msg = json.loads(line)
+        return msg.get("type") == "banner"
+    except Exception:
+        return False
+    finally:
+        try:
+            sock.close()
+        except Exception:
+            pass
+
+
+def _ensure_daemon(socket_path: Path) -> bool:
+    """Ensure a daemon is running and the socket is available.
+
+    1. Check if socket exists and responds.
+    2. If not: auto-start daemon (no web).
+    3. Poll up to 5 s for socket to appear.
+    4. Return True if connected successfully.
+    """
+    if _socket_alive(socket_path):
+        return True
+
+    from macroa.kernel.daemon import start as _daemon_start
+    try:
+        _daemon_start(web=False)
+    except RuntimeError:
+        pass  # already running — socket may still be starting
+
+    deadline = time.monotonic() + 5.0
+    while time.monotonic() < deadline:
+        if _socket_alive(socket_path):
+            return True
+        time.sleep(0.2)
+
+    return False
+
+
+# ------------------------------------------------------------------ socket REPL
+
+
+def _handle_socket_event(msg: dict) -> None:
+    """Display a server-pushed event message in the terminal."""
+    et = msg.get("event_type", "")
+    p = msg.get("payload", {})
+    if et == "reminder.fired":
+        from datetime import datetime
+        now_str = datetime.now().strftime("%H:%M")
+        console.print(
+            f"\n[bold yellow]⏰ Reminder [{now_str}][/bold yellow]  {p.get('message', '')}\n",
+            highlight=False,
+        )
+    elif et == "research.phase.start":
+        phase = p.get("phase")
+        name = p.get("name", "")
+        if phase == 1:
+            console.print(f"\n[bold]Research[/bold]  [dim]{p.get('query', '')[:80]}[/dim]")
+            console.print()
+        console.print(f"  [bold cyan]Phase {phase}[/bold cyan]  {name}…")
+    elif et == "research.subagent.start":
+        n, total, obj = p.get("subagent_n"), p.get("total"), p.get("objective", "")
+        console.print(f"    [cyan][{n}/{total}][/cyan]  {obj[:90]}")
+    elif et == "research.tool.call":
+        tool, arg = p.get("tool", ""), p.get("arg", "")
+        label = "search" if tool == "web_search" else "fetch "
+        arg_display = (arg[:72] + "…") if len(arg) > 72 else arg
+        console.print(f"          [dim]↳[/dim] [blue]{label}[/blue]  [dim]{arg_display}[/dim]")
+    elif et == "research.subagent.done":
+        n, total, c = p.get("subagent_n"), p.get("total"), p.get("citation_count", 0)
+        src = f"{c} source{'s' if c != 1 else ''}"
+        console.print(f"          [dim]✓ [{n}/{total}] {src}[/dim]")
+
+
+def _repl_via_socket(sock: _socket.socket, session_id: str, debug: bool) -> None:
+    """REPL loop that communicates with the daemon via Unix socket."""
+    r_file = sock.makefile("rb")
+
+    def _send(msg: dict) -> None:
+        sock.sendall((json.dumps(msg) + "\n").encode())
+
+    def _recv() -> dict | None:
+        try:
+            line = r_file.readline()
+            if not line:
+                return None
+            return json.loads(line)
+        except Exception:
+            return None
+
+    # Read and discard banner (connection confirmed)
+    banner = _recv()
+    if not banner or banner.get("type") != "banner":
+        return
+
+    debug_mode = debug
+
+    while True:
+        try:
+            raw = Prompt.ask("[bold cyan]macroa[/bold cyan]")
+        except (EOFError, KeyboardInterrupt):
+            console.print("\n[dim]Bye.[/dim]")
+            sys.exit(0)
+
+        raw = raw.strip()
+        if not raw:
+            continue
+
+        # Built-in commands
+        if raw.lower() in ("exit", "quit", "q"):
+            console.print("[dim]Bye.[/dim]")
+            sys.exit(0)
+
+        if raw.lower() == "clear":
+            _send({"type": "clear", "session_id": session_id})
+            _recv()  # consume done
+            render_info("Context cleared.")
+            continue
+
+        if raw.lower() == "debug":
+            debug_mode = not debug_mode
+            render_info(f"Debug mode {'ON' if debug_mode else 'OFF'}.")
+            continue
+
+        if raw.lower() == "help":
+            print_help()
+            continue
+
+        _send({"type": "run", "input": raw, "session_id": session_id})
+
+        was_streamed = False
+        done_msg: dict | None = None
+
+        while True:
+            msg = _recv()
+            if msg is None:
+                render_error("Lost connection to daemon.")
+                return
+
+            mtype = msg.get("type")
+
+            if mtype == "chunk":
+                was_streamed = True
+                console.print(msg.get("content", ""), end="", highlight=False)
+
+            elif mtype == "event":
+                _handle_socket_event(msg)
+
+            elif mtype == "sudo_confirm":
+                # Prompt user and send response
+                if was_streamed:
+                    console.print()
+                    was_streamed = False
+                console.print("\n[bold yellow]⚡ sudo[/bold yellow] Agent wants to run:")
+                console.print(f"  [bold]{msg.get('command', '')}[/bold]")
+                console.print(f"  [dim]{msg.get('reason', '')} — auto-denies in 30 s[/dim]")
+                try:
+                    answer = Prompt.ask("  Allow?", choices=["y", "n"], default="n")
+                    approved = answer == "y"
+                except (KeyboardInterrupt, EOFError):
+                    approved = False
+                _send({
+                    "type": "sudo_response",
+                    "request_id": msg.get("request_id", ""),
+                    "approved": approved,
+                })
+
+            elif mtype == "done":
+                done_msg = msg
+                break
+
+        if done_msg is None:
+            continue
+
+        if was_streamed:
+            console.print()  # newline after streamed output
+
+        if not done_msg.get("success"):
+            render_error(done_msg.get("error") or "Unknown error")
+        else:
+            # If not streamed, display output from done message
+            if not was_streamed and done_msg.get("output"):
+                from rich.markdown import Markdown
+                output = done_msg["output"].strip()
+                if output:
+                    markers = ("# ", "## ", "**", "- ", "* ", "```", "> ", "1. ")
+                    lines = output.splitlines()
+                    is_md = any(l.startswith(m) for l in lines[:10] for m in markers)
+                    if is_md:
+                        console.print(Markdown(output))
+                    else:
+                        console.print(output)
+
+            if debug and done_msg.get("tier"):
+                skill = done_msg.get("skill") or "—"
+                tier = done_msg.get("tier") or "—"
+                turn_id = done_msg.get("turn_id") or ""
+                turn_short = turn_id[:8] if turn_id else "—"
+                console.print(
+                    f"[dim]  skill={skill}  tier={tier}  turn={turn_short}[/dim]"
+                )
+
+
 # ------------------------------------------------------------------ REPL
 
 
-def _repl(debug: bool, session_name: str | None) -> None:
+def _repl_in_process(debug: bool, session_id: str) -> None:
+    """Original in-process REPL — used as fallback when daemon is unavailable."""
     _register_research_feed()
     _register_reminder_notifications()
-    print_banner()
-    session_id = _resolve_session(session_name)
     confirm_callback = _make_confirm_callback()
-    if session_name:
-        render_info(f"Resuming session: [bold]{session_name}[/bold]")
     debug_mode = debug
 
     while True:
@@ -299,6 +523,30 @@ def _repl(debug: bool, session_name: str | None) -> None:
             continue
 
         _execute(raw, session_id=session_id, debug=debug_mode, confirm_callback=confirm_callback, stream=True)
+
+
+def _repl(debug: bool, session_name: str | None) -> None:
+    print_banner()
+    session_id = _resolve_session(session_name)
+    if session_name:
+        render_info(f"Resuming session: [bold]{session_name}[/bold]")
+
+    socket_path = Path.home() / ".macroa" / "macroa.sock"
+
+    if _ensure_daemon(socket_path):
+        sock = _connect_socket(socket_path)
+        if sock:
+            try:
+                _repl_via_socket(sock, session_id, debug)
+            finally:
+                try:
+                    sock.close()
+                except Exception:
+                    pass
+            return
+
+    render_info("[dim]daemon unavailable — running standalone[/dim]")
+    _repl_in_process(debug, session_id)
 
 
 # ------------------------------------------------------------------ shared
@@ -402,6 +650,15 @@ def daemon() -> None:
     """Manage the Macroa background daemon."""
 
 
+@daemon.command("run")
+@click.option("--port", default=8000, show_default=True, help="Web API port.")
+@click.option("--no-web", is_flag=True, default=False, help="Disable the HTTP API.")
+def daemon_run(port: int, no_web: bool) -> None:
+    """Run daemon in foreground — for systemd/launchd. Never returns."""
+    from macroa.kernel.daemon import run_foreground
+    run_foreground(port=port, web=not no_web)
+
+
 @daemon.command("start")
 @click.option("--port", default=8000, show_default=True, help="Web API port.")
 @click.option("--no-web", is_flag=True, default=False, help="Disable the HTTP API.")
@@ -452,9 +709,12 @@ def daemon_status() -> None:
         m, s = divmod(rem, 60)
         uptime_str = f"  uptime {h}h {m}m {s}s" if h else f"  uptime {m}m {s}s"
     web_str = f"  web: http://127.0.0.1:{web_port}" if web_port else "  web: disabled"
+    sock_path = Path.home() / ".macroa" / "macroa.sock"
+    sock_str = f"  socket: {sock_path}" if sock_path.exists() else "  socket: offline"
     console.print(
         f"[dim]Daemon:[/dim] [green]running[/green]  "
-        f"PID {pid}  tasks: {tasks}{web_str}{uptime_str}"
+        f"PID {pid}  tasks: {tasks}{web_str}{uptime_str}\n"
+        f"[dim]         {sock_str}[/dim]"
     )
 
 
@@ -560,7 +820,7 @@ def serve(host: str, port: int, reload: bool) -> None:
     try:
         import uvicorn
     except ImportError:
-        render_error("uvicorn not installed. Run: pip install macroa[web]")
+        render_error("uvicorn not installed. Run: pip install 'macroa[web]'")
         sys.exit(1)
     render_info(f"Starting Macroa API on http://{host}:{port}")
     uvicorn.run("macroa.web.app:app", host=host, port=port, reload=reload)

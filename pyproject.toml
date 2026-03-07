@@ -43,6 +43,7 @@ Changelog  = "https://github.com/aniolowie/Macroa/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 web = ["fastapi>=0.110.0", "uvicorn[standard]>=0.29.0"]
+all = ["fastapi>=0.110.0", "uvicorn[standard]>=0.29.0"]
 dev = [
     "pytest>=8.0",
     "pytest-cov>=5.0",
