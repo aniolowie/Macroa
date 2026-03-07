@@ -16,7 +16,6 @@ import json
 import logging
 import re
 import uuid
-from typing import Optional
 
 from macroa.config.skill_registry import SkillRegistry
 from macroa.drivers.llm_driver import LLMDriver, LLMDriverError
