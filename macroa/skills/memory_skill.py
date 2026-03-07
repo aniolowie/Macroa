@@ -36,6 +36,9 @@ _LIST_ALL_SIGNALS = frozenset([
     "about me", "know about me", "what you know", "what do you know",
     "tell me what you know", "show me what you know", "you know about me",
     "memory", "memories",
+    "describe me", "describe who", "who am i", "who i am",
+    "tell me about me", "tell me about myself", "about myself",
+    "what i told", "what have i told", "what do i",
 ])
 
 

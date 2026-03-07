@@ -18,6 +18,19 @@ _CHAR_BUDGET = 2_000
 # Number of contextual (non-pinned) FTS5 results to consider
 _CONTEXT_K = 8
 
+# Queries that mean "tell me everything about me" — FTS is useless here because
+# the words "describe" / "who" don't appear in fact keys or values.
+_SELF_REFERENTIAL = frozenset([
+    "describe me", "describe who", "who am i", "who i am", "about myself",
+    "about me", "know about me", "what you know", "what do you know",
+    "tell me about me", "tell me about myself", "what i told you",
+])
+
+
+def _is_self_referential(query: str) -> bool:
+    q = query.lower()
+    return any(sig in q for sig in _SELF_REFERENTIAL)
+
 
 def retrieve(query: str, memory: MemoryDriver) -> list[dict]:
     """Return an ordered list of fact dicts relevant to the current query.
@@ -25,6 +38,11 @@ def retrieve(query: str, memory: MemoryDriver) -> list[dict]:
     Pinned facts come first (always included up to budget).
     Contextual facts follow (FTS5-ranked, deduplicated against pinned).
     """
+    # Self-referential queries ("describe me", "who am i") — FTS is useless
+    # because query words don't appear in user fact keys/values. Return everything.
+    if _is_self_referential(query):
+        return memory.list_all()[:20]
+
     pinned = memory.list_pinned()
     pinned_keys = {f["key"] for f in pinned}
 
