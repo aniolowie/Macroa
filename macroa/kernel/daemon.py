@@ -180,6 +180,17 @@ def _daemon_main(port: int = 8000, web: bool = True) -> None:
     signal.signal(signal.SIGTERM, _on_sigterm)
     signal.signal(signal.SIGINT, _on_sigterm)
 
+    # Start Unix socket server
+    from macroa.kernel.socket_server import SocketServer
+    socket_path = _macroa_dir() / "macroa.sock"
+    sock_server = SocketServer(socket_path=socket_path)
+    try:
+        sock_server.start_in_thread()
+        logger.info("Socket server started at %s", socket_path)
+    except Exception as exc:
+        logger.warning("Socket server failed to start: %s", exc)
+        sock_server = None  # type: ignore[assignment]
+
     # Start web API in a daemon thread
     web_thread: threading.Thread | None = None
     if web:
@@ -221,6 +232,12 @@ def _daemon_main(port: int = 8000, web: bool = True) -> None:
 
     # Graceful teardown
     logger.info("Daemon shutting down")
+    if sock_server is not None:
+        try:
+            sock_server.stop()
+            socket_path.unlink(missing_ok=True)
+        except Exception:
+            pass
     try:
         kernel.shutdown()
     except Exception:
@@ -228,6 +245,11 @@ def _daemon_main(port: int = 8000, web: bool = True) -> None:
     pf.unlink(missing_ok=True)
     sf.unlink(missing_ok=True)
     logger.info("Daemon stopped")
+
+
+def run_foreground(port: int = 8000, web: bool = True) -> None:
+    """Run daemon in foreground — for systemd/launchd. Never returns."""
+    _daemon_main(port=port, web=web)
 
 
 if __name__ == "__main__":

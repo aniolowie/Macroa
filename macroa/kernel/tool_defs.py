@@ -241,6 +241,28 @@ TOOL_SCHEMAS: list[dict] = [
     {
         "type": "function",
         "function": {
+            "name": "list_directory",
+            "description": (
+                "List files and directories at a given path. "
+                "Use this whenever the user asks what files exist, what's in a directory, "
+                "or to explore the filesystem. Pass '.' or omit path to list the current "
+                "working directory (cwd shown in Runtime section above)."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Directory path to list (absolute, ~-expanded, or '.' for cwd). Defaults to cwd.",
+                    },
+                },
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "fetch_url",
             "description": (
                 "Fetch the text content of a web page (HTML stripped). "
@@ -285,6 +307,8 @@ def execute_tool(
             return _recall(args["query"], drivers)
         if name == "web_search":
             return _web_search(args["query"], drivers)
+        if name == "list_directory":
+            return _list_directory(args.get("path", "."), drivers)
         if name == "fetch_url":
             return _fetch_url(args["url"], drivers)
         if name == "spawn_agent":
@@ -440,6 +464,25 @@ def _spawn_agent(
     if result.success:
         return f"[subagent '{name}' completed]\n{result.output}"
     return f"[subagent '{name}' failed: {result.error}]"
+
+
+def _list_directory(path: str, _drivers: DriverBundle) -> str:
+    p = Path(path or ".").expanduser().resolve()
+    try:
+        entries = sorted(p.iterdir(), key=lambda e: (not e.is_dir(), e.name.lower()))
+        if not entries:
+            return f"{p}: (empty directory)"
+        lines = [f"{p}:"]
+        for e in entries:
+            suffix = "/" if e.is_dir() else ""
+            lines.append(f"  {'d' if e.is_dir() else '-'} {e.name}{suffix}")
+        return "\n".join(lines)
+    except PermissionError:
+        return f"[list_directory: permission denied: {p}]"
+    except FileNotFoundError:
+        return f"[list_directory: not found: {p}]"
+    except Exception as exc:
+        return f"[list_directory error: {exc}]"
 
 
 def _fetch_url(url: str, drivers: DriverBundle) -> str:
