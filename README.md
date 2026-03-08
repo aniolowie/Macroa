@@ -1,3 +1,17 @@
+> **⚠️ ARCHIVED , This repository is legacy.** Development has pivoted to a new architecture.
+>
+> The original Macroa was a Python-based personal AI assistant. After a full design review, the project was redesigned from scratch as **Macroa: an AI agent operating system**, a platform that other agents run on, the way apps run on Windows.
+>
+> The original code is preserved here for reference. The new build starts from zero with a clear architecture designed before any code.
+>
+> **Active development:**
+> - [Macroa-Pulse](https://github.com/aniolowie/Macroa-Pulse) , the proactive cognition subsystem, built first
+> - Macroa kernel, SDK, and shell , coming after Pulse
+>
+> The core pivot: every AI agent framework today is reactive. The new Macroa is built around the **Pulse**, a system that enables agents to notice when something is worth attention and act on it, without cron jobs, webhooks, or LLM polling, and around one principle: *AI is used only where no deterministic process can do the job. Everything else is infrastructure.*
+
+---
+
 <div align="center">
 
 ```
